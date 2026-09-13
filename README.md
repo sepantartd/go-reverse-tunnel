@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # ⚡ go-reverse-tunnel
 
 A high-performance, enterprise-grade secure reverse tunneling tool crafted in Go. Built for heavy-duty networking, it's meticulously optimized for mobile environments like **Termux/Android** as well as production Linux and Windows servers.
@@ -44,3 +45,6 @@ go run cmd/client/main.go -config=client-config.json
 Open your browser and visit http://YOUR_SERVER_IP:8081 to view the live dashboard.
 📜 License
 This project is licensed under the MIT License - see the LICENSE file for details.
+=======
+# go-reverse-tunnel
+>>>>>>> ed0aa1639eb15b6a29677ae4130eb7602e29efe7
