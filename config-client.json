@@ -1,0 +1,6 @@
+{
+  "server_addr": "127.0.0.1:7001",
+  "data_server_addr": "127.0.0.1:7002",
+  "token": "secret-token-123",
+  "local_service": "127.0.0.1:8080"
+}

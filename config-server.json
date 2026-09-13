@@ -1,0 +1,6 @@
+{
+  "bind_addr": "0.0.0.0:7000",
+  "control_port": 7001,
+  "data_port": 7002,
+  "token": "secret-token-123"
+}
