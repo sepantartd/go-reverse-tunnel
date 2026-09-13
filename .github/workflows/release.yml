@@ -18,22 +18,30 @@ jobs:
         with:
           go-version: '1.22'
 
-      - name: Build for Linux AMD64
-        run: GOOS=linux GOARCH=amd64 go build -o go-reverse-tunnel-linux-amd64 ./cmd/...
+      - name: Build Binaries
+        run: |
+          # Linux builds
+          GOOS=linux GOARCH=amd64 go build -o go-reverse-tunnel-server-linux-amd64 ./cmd/server/main.go
+          GOOS=linux GOARCH=amd64 go build -o go-reverse-tunnel-client-linux-amd64 ./cmd/client/main.go
 
-      - name: Build for Windows AMD64
-        run: GOOS=windows GOARCH=amd64 go build -o go-reverse-tunnel-windows-amd64.exe ./cmd/...
+          # Windows builds
+          GOOS=windows GOARCH=amd64 go build -o go-reverse-tunnel-server-windows-amd64.exe ./cmd/server/main.go
+          GOOS=windows GOARCH=amd64 go build -o go-reverse-tunnel-client-windows-amd64.exe ./cmd/client/main.go
 
-      - name: Build for Termux ARM64
-        run: GOOS=linux GOARCH=arm64 go build -o go-reverse-tunnel-termux-arm64 ./cmd/...
+          # Termux (Android ARM64) builds
+          GOOS=linux GOARCH=arm64 go build -o go-reverse-tunnel-server-termux-arm64 ./cmd/server/main.go
+          GOOS=linux GOARCH=arm64 go build -o go-reverse-tunnel-client-termux-arm64 ./cmd/client/main.go
 
       - name: Create Release and Upload Assets
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            go-reverse-tunnel-linux-amd64
-            go-reverse-tunnel-windows-amd64.exe
-            go-reverse-tunnel-termux-arm64
+            go-reverse-tunnel-server-linux-amd64
+            go-reverse-tunnel-client-linux-amd64
+            go-reverse-tunnel-server-windows-amd64.exe
+            go-reverse-tunnel-client-windows-amd64.exe
+            go-reverse-tunnel-server-termux-arm64
+            go-reverse-tunnel-client-termux-arm64
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           
