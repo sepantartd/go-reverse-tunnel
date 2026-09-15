@@ -4,17 +4,25 @@ import (
 	"encoding/binary"
 	"io"
 	"net"
+	"sync"
 )
 
 // ForwardUDPOverTCP converts incoming UDP datagrams into length-prefixed stream over TCP
 func ForwardUDPOverTCP(udpConn *net.UDPConn, tcpConn net.Conn) {
-	defer udpConn.Close()
-	defer tcpConn.Close()
+	closeConns := sync.OnceFunc(func() {
+		udpConn.Close()
+		tcpConn.Close()
+	})
+	defer closeConns()
 
-	done := make(chan struct{}, 2)
+	var wg sync.WaitGroup
+	wg.Add(2)
 
 	// UDP -> TCP
 	go func() {
+		defer wg.Done()
+		defer closeConns()
+
 		buf := make([]byte, 65535)
 		for {
 			n, _, err := udpConn.ReadFrom(buf)
@@ -33,11 +41,13 @@ func ForwardUDPOverTCP(udpConn *net.UDPConn, tcpConn net.Conn) {
 				break
 			}
 		}
-		done <- struct{}{}
 	}()
 
 	// TCP -> UDP
 	go func() {
+		defer wg.Done()
+		defer closeConns()
+
 		lengthBuf := make([]byte, 2)
 		for {
 			if _, err := io.ReadFull(tcpConn, lengthBuf); err != nil {
@@ -54,8 +64,7 @@ func ForwardUDPOverTCP(udpConn *net.UDPConn, tcpConn net.Conn) {
 				break
 			}
 		}
-		done <- struct{}{}
 	}()
 
-	<-done
+	wg.Wait()
 }
