@@ -24,6 +24,7 @@ type ServerConfig struct {
 
 type ClientConfig struct {
 	ServerAddr    string `json:"server_addr"`
+	LocalAddr     string `json:"local_addr"`
 	ClientID      string `json:"client_id"`
 	Token         string `json:"token"`
 	EnableTLS     bool   `json:"enable_tls"`
@@ -96,6 +97,11 @@ func (c *ClientConfig) Validate() error {
 	}
 	if err := validateHostPort(c.ServerAddr); err != nil {
 		return fmt.Errorf("invalid client server_addr: %w", err)
+	}
+	if c.LocalAddr != "" {
+		if err := validateHostPort(c.LocalAddr); err != nil {
+			return fmt.Errorf("invalid client local_addr: %w", err)
+		}
 	}
 	if c.ClientID == "" {
 		return errors.New("client ID cannot be empty")
