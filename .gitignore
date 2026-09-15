@@ -1,0 +1,6 @@
+bin/
+client
+server
+*.exe
+*.log
+.DS_Store
