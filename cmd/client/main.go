@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
 	"log"
@@ -30,17 +31,13 @@ func main() {
 		log.Fatalf("[Client] Configuration validation failed: %v", err)
 	}
 
-	// Handle graceful shutdown via OS signals
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
-	go func() {
-		sig := <-sigChan
-		log.Printf("[Client] Received signal %v, exiting...", sig)
-		os.Exit(0)
-	}()
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 
 	log.Println("[Client] Starting tunnel client daemon...")
-	if err := client.RunClient(&cfg); err != nil {
+	if err := client.RunClient(ctx, &cfg); err != nil {
 		log.Fatalf("[Client] Client stopped with error: %v", err)
 	}
+
+	log.Println("[Client] Shutdown complete.")
 }
