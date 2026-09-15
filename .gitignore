@@ -1,6 +1,12 @@
-bin/
-client
-server
+# Binaries
+/client
+/server
+/cmd/client/client
+/cmd/server/server
+
+# IDE & OS
+.idea/
+.vscode/
+*.swp
 *.exe
-*.log
-.DS_Store
+bin/
