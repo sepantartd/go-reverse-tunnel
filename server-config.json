@@ -1,0 +1,12 @@
+{
+  "control_addr": "0.0.0.0:7001",
+  "web_port": 8081,
+  "token": "my-super-secret-token-123",
+  "cert": "cert.pem",
+  "key": "key.pem",
+  "public_binds": [
+    {"port": 80, "name": "http"},
+    {"port": 443, "name": "https"},
+    {"port": 2222, "name": "ssh"}
+  ]
+}

@@ -1,0 +1,14 @@
+[Unit]
+Description=Go Reverse Tunnel Client
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/go-reverse-tunnel
+ExecStart=/opt/go-reverse-tunnel/client -config client-config.json
+Restart=always
+RestartSec=3s
+
+[Install]
+WantedBy=multi-user.target
