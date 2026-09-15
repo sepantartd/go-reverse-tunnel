@@ -1,23 +1,39 @@
 package main
 
 import (
-	"flag"
-	"log"
+"flag"
+"log"
+"os"
+"os/signal"
+"syscall"
 
-	"github.com/sepantartd/go-reverse-tunnel/pkg/client"
-	"github.com/sepantartd/go-reverse-tunnel/pkg/config"
+"github.com/sepantartd/go-reverse-tunnel/pkg/client"
+"github.com/sepantartd/go-reverse-tunnel/pkg/config"
 )
 
 func main() {
-	configFile := flag.String("config", "client-config.json", "Path to client configuration file")
-	flag.Parse()
+configPath := flag.String("config", "configs/client.json", "Path to client configuration file")
+flag.Parse()
 
-	cfg, err := config.LoadClientConfig(*configFile)
-	if err != nil {
-		log.Fatalf("Failed to load client config: %v", err)
-	}
+log.Println("Starting Go Reverse Tunnel Client...")
 
-	cli := client.NewTunnelClient(cfg)
-	log.Println("[Client] Starting Reverse Tunnel Client...")
-	cli.Start()
+cfg, err := config.LoadClientConfig(*configPath)
+if err != nil {
+log.Fatalf("Failed to load configuration: %v", err)
+}
+
+// تنظیم هندلینگ سیگنال‌ها برای خروج تمیز
+sigChan := make(chan os.Signal, 1)
+signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+
+clientInstance := client.NewTunnelClient(cfg)
+
+go func() {
+<-sigChan
+log.Println("Shutting down client gracefully...")
+os.Exit(0)
+}()
+
+// اجرای کلاینت
+clientInstance.Start()
 }

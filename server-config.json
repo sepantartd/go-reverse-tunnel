@@ -5,8 +5,8 @@
   "cert": "cert.pem",
   "key": "key.pem",
   "public_binds": [
-    {"port": 80, "name": "http"},
-    {"port": 443, "name": "https"},
+    {"port": 8080, "name": "http"},
+    {"port": 8443, "name": "https"},
     {"port": 2222, "name": "ssh"}
   ]
 }

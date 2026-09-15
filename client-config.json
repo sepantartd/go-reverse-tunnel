@@ -1,10 +1,10 @@
 {
   "server": "127.0.0.1:7001",
   "token": "my-super-secret-token-123",
-  "client_id": "iran-vps-01",
+  "client_id": "termux-test-01",
   "forwards": [
-    {"remote_port": 80, "local": "127.0.0.1:80"},
-    {"remote_port": 443, "local": "127.0.0.1:443"},
+    {"remote_port": 8080, "local": "127.0.0.1:8080"},
+    {"remote_port": 8443, "local": "127.0.0.1:8443"},
     {"remote_port": 2222, "local": "127.0.0.1:22"}
   ]
 }
