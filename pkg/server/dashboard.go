@@ -1,40 +1,40 @@
 package server
 
 import (
-"encoding/json"
-"fmt"
-"net/http"
-"time"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"time"
 )
 
 type DashboardStats struct {
-Uptime        string   `json:"uptime"`
-ActiveClients int      `json:"active_clients"`
-ClientIDs     []string `json:"client_ids"`
+	Uptime        string   `json:"uptime"`
+	ActiveClients int      `json:"active_clients"`
+	ClientIDs     []string `json:"client_ids"`
 }
 
 func (s *TunnelServer) StartDashboard(port int, startTime time.Time) {
-http.HandleFunc("/api/stats", func(w http.ResponseWriter, r *http.Request) {
-s.mu.RLock()
-clientIDs := make([]string, 0, len(s.clients))
-for id := range s.clients {
-clientIDs = append(clientIDs, id)
-}
-s.mu.RUnlock()
+	http.HandleFunc("/api/stats", func(w http.ResponseWriter, r *http.Request) {
+		s.mu.RLock()
+		clientIDs := make([]string, 0, len(s.clients))
+		for id := range s.clients {
+			clientIDs = append(clientIDs, id)
+		}
+		s.mu.RUnlock()
 
-stats := DashboardStats{
-Uptime:        time.Since(startTime).Round(time.Second).String(),
-ActiveClients: len(clientIDs),
-ClientIDs:     clientIDs,
-}
+		stats := DashboardStats{
+			Uptime:        time.Since(startTime).Round(time.Second).String(),
+			ActiveClients: len(clientIDs),
+			ClientIDs:     clientIDs,
+		}
 
-w.Header().Set("Content-Type", "application/json")
-_ = json.NewEncoder(w).Encode(stats)
-})
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(stats)
+	})
 
-http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-w.Header().Set("Content-Type", "text/html; charset=utf-8")
-html := fmt.Sprintf(`<!DOCTYPE html>
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		html := fmt.Sprintf(`<!DOCTYPE html>
 <html>
 <head><title>Go-Reverse-Tunnel Dashboard</title>
 <style>
@@ -51,9 +51,9 @@ h1 { color: #4caf50; }
 </div>
 </body>
 </html>`, time.Since(startTime).Round(time.Second).String(), len(s.clients))
-_, _ = w.Write([]byte(html))
-})
+		_, _ = w.Write([]byte(html))
+	})
 
-addr := fmt.Sprintf("0.0.0.0:%d", port)
-_ = http.ListenAndServe(addr, nil)
+	addr := fmt.Sprintf("0.0.0.0:%d", port)
+	_ = http.ListenAndServe(addr, nil)
 }

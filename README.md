@@ -1,3 +1,5 @@
+[![CI](https://github.com/sepantartd/go-reverse-tunnel/actions/workflows/ci.yml/badge.svg)](https://github.com/sepantartd/go-reverse-tunnel/actions/workflows/ci.yml)
+
 # ⚡ go-reverse-tunnel
 
 [![Go](https://img.shields.io/badge/Go-1.26%2B-00ADD8?logo=go)](https://go.dev/)
