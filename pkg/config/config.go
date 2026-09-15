@@ -1,71 +1,76 @@
 package config
 
 import (
-	"encoding/json"
-	"os"
+	"errors"
+	"fmt"
 )
 
-type PublicBind struct {
-	Port int    `json:"port"`
-	Name string `json:"name"`
+type ClientMapping struct {
+	ClientID string   `json:"client_id"`
+	Ports    []int    `json:"ports"`
 }
 
 type ServerConfig struct {
-	ControlAddr    string       `json:"control_addr"`
-	WebPort        int          `json:"web_port"`
-	Token          string       `json:"token"`
-	Cert           string       `json:"cert"`
-	Key            string       `json:"key"`
-	ClientCA       string       `json:"client_ca,omitempty"`
-	EnableTLS      bool         `json:"enable_tls"`
-	EnableCompress bool         `json:"enable_compress"`
-	PublicBinds    []PublicBind `json:"public_binds"`
-}
-
-type Forward struct {
-	RemotePort int    `json:"remote_port"`
-	Local      string `json:"local"`
-	Proto      string `json:"proto,omitempty"` // "tcp" or "udp"
+	ControlAddr string          `json:"control_addr"`
+	Token       string          `json:"token"`
+	EnableTLS   bool            `json:"enable_tls"`
+	CertFile    string          `json:"cert_file"`
+	KeyFile     string          `json:"key_file"`
+	CAFile      string          `json:"ca_file"`
+	Clients     []ClientMapping `json:"clients"`
 }
 
 type ClientConfig struct {
-	Server         string    `json:"server"`
-	Token          string    `json:"token"`
-	ClientID       string    `json:"client_id"`
-	EnableTLS      bool      `json:"enable_tls"`
-	TLSSkipVerify  bool      `json:"tls_skip_verify"`
-	ServerCA       string    `json:"server_ca,omitempty"`
-	ClientCert     string    `json:"client_cert,omitempty"`
-	ClientKey      string    `json:"client_key,omitempty"`
-	EnableCompress bool      `json:"enable_compress"`
-	Socks5Addr     string    `json:"socks5_addr,omitempty"` // e.g. "127.0.0.1:1080"
-	Forwards       []Forward `json:"forwards"`
+	ServerAddr    string `json:"server_addr"`
+	ClientID      string `json:"client_id"`
+	Token         string `json:"token"`
+	EnableTLS     bool   `json:"enable_tls"`
+	CAFile        string `json:"ca_file"`
+	CertFile      string `json:"cert_file"`
+	KeyFile       string `json:"key_file"`
+	TLSSkipVerify bool   `json:"tls_skip_verify"`
 }
 
-func LoadServerConfig(path string) (*ServerConfig, error) {
-	file, err := os.Open(path)
-	if err != nil {
-		return nil, err
+func (c *ServerConfig) Validate() error {
+	if c.ControlAddr == "" {
+		return errors.New("server control address cannot be empty")
 	}
-	defer file.Close()
-
-	var cfg ServerConfig
-	if err := json.NewDecoder(file).Decode(&cfg); err != nil {
-		return nil, err
+	if c.Token == "" {
+		return errors.New("server token cannot be empty")
 	}
-	return &cfg, nil
+	if c.EnableTLS {
+		if c.CertFile == "" || c.KeyFile == "" {
+			return errors.New("TLS is enabled on server, but CertFile or KeyFile is missing")
+		}
+	}
+	for _, client := range c.Clients {
+		if client.ClientID == "" {
+			return errors.New("client mapping has an empty ClientID")
+		}
+		if len(client.Ports) == 0 {
+			return fmt.Errorf("client %s has no public ports mapped", client.ClientID)
+		}
+		for _, port := range client.Ports {
+			if port <= 0 || port > 65535 {
+				return fmt.Errorf("invalid port number %d for client %s", port, client.ClientID)
+			}
+		}
+	}
+	return nil
 }
 
-func LoadClientConfig(path string) (*ClientConfig, error) {
-	file, err := os.Open(path)
-	if err != nil {
-		return nil, err
+func (c *ClientConfig) Validate() error {
+	if c.ServerAddr == "" {
+		return errors.New("client server address cannot be empty")
 	}
-	defer file.Close()
-
-	var cfg ClientConfig
-	if err := json.NewDecoder(file).Decode(&cfg); err != nil {
-		return nil, err
+	if c.ClientID == "" {
+		return errors.New("client ID cannot be empty")
 	}
-	return &cfg, nil
+	if c.Token == "" {
+		return errors.New("authentication token cannot be empty")
+	}
+	if c.EnableTLS && c.TLSSkipVerify && c.CAFile == "" {
+		// Soft check: valid if explicitly configured
+	}
+	return nil
 }

@@ -1,0 +1,14 @@
+{
+  "control_addr": "0.0.0.0:8443",
+  "token": "my_secure_secret_token_123",
+  "enable_tls": false,
+  "cert_file": "",
+  "key_file": "",
+  "ca_file": "",
+  "clients": [
+    {
+      "client_id": "client-01",
+      "ports": [8080, 9090]
+    }
+  ]
+}

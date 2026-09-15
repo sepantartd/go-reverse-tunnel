@@ -4,48 +4,107 @@ import (
 	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
-	"encoding/hex"
 	"errors"
-	"fmt"
 	"io"
+	"net"
 )
 
-const NonceSize = 32
-
-// GenerateNonce creates a cryptographically secure random challenge
-func GenerateNonce() ([]byte, error) {
-	nonce := make([]byte, NonceSize)
-	_, err := io.ReadFull(rand.Reader, nonce)
-	if err != nil {
-		return nil, fmt.Errorf("failed to generate nonce: %w", err)
+// ServerAuthenticate performs a secure HMAC-SHA256 handshake with a random nonce on the server side.
+// Protocol flow:
+// 1. Server sends 32-byte random nonce to client.
+// 2. Client computes HMAC-SHA256(token, nonce + clientID) and sends [ClientIDLen(1)][ClientID][HMAC(32)].
+// 3. Server verifies HMAC and responds with ACK (1) or NAK (0).
+func ServerAuthenticate(conn net.Conn, expectedToken string) (string, error) {
+	// Generate 32 bytes of secure random nonce
+	nonce := make([]byte, 32)
+	if _, err := rand.Read(nonce); err != nil {
+		return "", err
 	}
-	return nonce, nil
+
+	// Send nonce to client
+	if _, err := conn.Write(nonce); err != nil {
+		return "", err
+	}
+
+	// Read client ID length header
+	header := make([]byte, 1)
+	if _, err := io.ReadFull(conn, header); err != nil {
+		return "", err
+	}
+	idLen := int(header[0])
+	if idLen == 0 {
+		conn.Write([]byte{0})
+		return "", errors.New("authentication failed: invalid client ID length")
+	}
+
+	// Read ClientID and HMAC signature
+	buf := make([]byte, idLen+32)
+	if _, err := io.ReadFull(conn, buf); err != nil {
+		return "", err
+	}
+
+	clientID := string(buf[:idLen])
+	clientHMAC := buf[idLen:]
+
+	// Compute expected HMAC
+	mac := hmac.New(sha256.New, []byte(expectedToken))
+	mac.Write(nonce)
+	mac.Write([]byte(clientID))
+	expectedHMAC := mac.Sum(nil)
+
+	// Verify signature in constant time
+	if !hmac.Equal(clientHMAC, expectedHMAC) {
+		conn.Write([]byte{0}) // Send failure ACK
+		return "", errors.New("authentication failed: invalid HMAC signature")
+	}
+
+	// Send success ACK
+	if _, err := conn.Write([]byte{1}); err != nil {
+		return "", err
+	}
+
+	return clientID, nil
 }
 
-// ComputeHMAC calculates HMAC-SHA256 for the given message and token
-func ComputeHMAC(message []byte, token string) string {
+// ClientAuthenticate performs the client-side HMAC-SHA256 authentication handshake.
+func ClientAuthenticate(conn net.Conn, clientID string, token string) error {
+	// Read nonce from server
+	nonce := make([]byte, 32)
+	if _, err := io.ReadFull(conn, nonce); err != nil {
+		return err
+	}
+
+	idBytes := []byte(clientID)
+	if len(idBytes) == 0 || len(idBytes) > 255 {
+		return errors.New("invalid clientID length (must be between 1 and 255 bytes)")
+	}
+
+	// Compute HMAC: HMAC-SHA256(token, nonce + clientID)
 	mac := hmac.New(sha256.New, []byte(token))
-	mac.Write(message)
-	return hex.EncodeToString(mac.Sum(nil))
-}
+	mac.Write(nonce)
+	mac.Write(idBytes)
+	clientHMAC := mac.Sum(nil)
 
-// VerifyHMAC checks if the received HMAC matches the expected signature
-func VerifyHMAC(message []byte, receivedHMAC string, token string) bool {
-	expectedHMAC := ComputeHMAC(message, token)
-	return hmac.Equal([]byte(expectedHMAC), []byte(receivedHMAC))
-}
+	// Construct packet: [ClientIDLen(1)][ClientID][HMAC(32)]
+	packet := make([]byte, 1+len(idBytes)+32)
+	packet[0] = byte(len(idBytes))
+	copy(packet[1:], idBytes)
+	copy(packet[1+len(idBytes):], clientHMAC)
 
-// ClientAuthRequest represents the handshake payload from client to server
-type AuthHandshake struct {
-	ClientID string `json:"client_id"`
-	Response string `json:"response"`
-}
+	// Send authentication packet
+	if _, err := conn.Write(packet); err != nil {
+		return err
+	}
 
-// ServerChallenge represents the challenge sent from server to client
-type Challenge struct {
-	NonceHex string `json:"nonce_hex"`
-}
+	// Read server ACK response
+	ack := make([]byte, 1)
+	if _, err := io.ReadFull(conn, ack); err != nil {
+		return err
+	}
 
-var (
-	ErrAuthFailed = errors.New("authentication failed: invalid HMAC signature")
-)
+	if ack[0] != 1 {
+		return errors.New("authentication rejected by server")
+	}
+
+	return nil
+}

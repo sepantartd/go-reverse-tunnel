@@ -1,0 +1,10 @@
+{
+  "server_addr": "127.0.0.1:8443",
+  "client_id": "client-01",
+  "token": "my_secure_secret_token_123",
+  "enable_tls": false,
+  "ca_file": "",
+  "cert_file": "",
+  "key_file": "",
+  "tls_skip_verify": true
+}

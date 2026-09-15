@@ -1,33 +1,42 @@
 package server
 
 import (
-"encoding/json"
-"net/http"
-"time"
+	"encoding/json"
+	"net/http"
+	"time"
 )
 
-// HandleDashboard serves a secure, token-protected status and health endpoint
+type StatusResponse struct {
+	Status    string   `json:"status"`
+	Uptime    string   `json:"uptime"`
+	Clients   []string `json:"connected_clients"`
+}
+
 func (s *TunnelServer) HandleDashboard(w http.ResponseWriter, r *http.Request) {
-// Simple query token authentication protection
-token := r.URL.Query().Get("token")
-if token == "" || (s.config != nil && token != s.config.Token) {
-http.Error(w, "Unauthorized: Invalid or missing token", http.StatusUnauthorized)
-return
+	// Simple token protection via query parameter or header
+	token := r.URL.Query().Get("token")
+	if token != s.config.Token {
+		http.Error(w, "Unauthorized: invalid token", http.StatusUnauthorized)
+		return
+	}
+
+	s.mu.RLock()
+	clientIDs := make([]string, 0, len(s.clients))
+	for id := range s.clients {
+		clientIDs = append(clientIDs, id)
+	}
+	s.mu.RUnlock()
+
+	response := StatusResponse{
+		Status:    "running",
+		Uptime:    time.Since(s.startTime).String(),
+		Clients:   clientIDs,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(encodeWriter{w}).Encode(response)
 }
 
-s.mu.RLock()
-clientCount := len(s.clients)
-uptime := time.Since(s.startTime).String()
-s.mu.RUnlock()
-
-statusInfo := map[string]interface{}{
-"status":         "healthy",
-"active_clients": clientCount,
-"uptime":         uptime,
-"timestamp":      time.Now().Format(time.RFC3339),
-}
-
-w.Header().Set("Content-Type", "application/json")
-w.WriteHeader(http.StatusOK)
-json.NewEncoder(w).Encode(statusInfo)
+type encodeWriter struct {
+	http.ResponseWriter
 }
