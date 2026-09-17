@@ -12,7 +12,7 @@ import (
 )
 
 type YamuxConfig struct {
-	KeepAliveInterval int `json:"keepalive_interval_sec,omitempty"` // Default: 30s
+	KeepAliveInterval   int    `json:"keepalive_interval_sec,omitempty"`   // Default: 30s
 	MaxStreamWindowSize uint32 `json:"max_stream_window_size,omitempty"` // Default: 256KB
 }
 
