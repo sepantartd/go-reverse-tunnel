@@ -1,70 +1,51 @@
-package server
+package server_test
 
 import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
 
 	"github.com/sepantartd/go-reverse-tunnel/pkg/config"
+	"github.com/sepantartd/go-reverse-tunnel/pkg/server"
 )
 
-func TestHandleDashboard_Auth(t *testing.T) {
-	srv := &TunnelServer{
-		config:    &config.ServerConfig{Token: "secret123"},
-		startTime: time.Now(),
+func TestDashboard_Auth(t *testing.T) {
+	srvCfg := &config.ServerConfig{
+		ControlAddr:   "127.0.0.1:0",
+		Token:         "secret",
+		DashboardUser: "admin",
+		DashboardPass: "password123",
 	}
 
-	tests := []struct {
-		name       string
-		headerKey  string
-		headerVal  string
-		queryParam string
-		wantStatus int
-	}{
-		{
-			name:       "Valid Bearer Token Header",
-			headerKey:  "Authorization",
-			headerVal:  "Bearer secret123",
-			wantStatus: http.StatusOK,
-		},
-		{
-			name:       "Valid X-API-Key Header",
-			headerKey:  "X-API-Key",
-			headerVal:  "secret123",
-			wantStatus: http.StatusOK,
-		},
-		{
-			name:       "Valid Query Param (Fallback)",
-			queryParam: "?token=secret123",
-			wantStatus: http.StatusOK,
-		},
-		{
-			name:       "Invalid Token",
-			headerKey:  "Authorization",
-			headerVal:  "Bearer wrongtoken",
-			wantStatus: http.StatusUnauthorized,
-		},
-		{
-			name:       "Missing Token",
-			wantStatus: http.StatusUnauthorized,
-		},
+	srv := server.NewTunnelServer(srvCfg)
+
+	// Test Unauthenticated Request
+	req := httptest.NewRequest("GET", "/dashboard", nil)
+	w := httptest.NewRecorder()
+	srv.HandleDashboard(w, req)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("Expected 401 Unauthorized, got %d", w.Code)
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			reqUrl := "/status" + tt.queryParam
-			req := httptest.NewRequest("GET", reqUrl, nil)
-			if tt.headerKey != "" {
-				req.Header.Set(tt.headerKey, tt.headerVal)
-			}
+	// Test Authenticated HTML Request
+	reqAuth := httptest.NewRequest("GET", "/dashboard", nil)
+	reqAuth.SetBasicAuth("admin", "password123")
+	wAuth := httptest.NewRecorder()
+	srv.HandleDashboard(wAuth, reqAuth)
 
-			rec := httptest.NewRecorder()
-			srv.HandleDashboard(rec, req)
+	if wAuth.Code != http.StatusOK {
+		t.Fatalf("Expected 200 OK, got %d", wAuth.Code)
+	}
 
-			if rec.Code != tt.wantStatus {
-				t.Errorf("got status %d, want %d", rec.Code, tt.wantStatus)
-			}
-		})
+	// Test Authenticated JSON Request
+	reqJSON := httptest.NewRequest("GET", "/dashboard", nil)
+	reqJSON.SetBasicAuth("admin", "password123")
+	reqJSON.Header.Set("Accept", "application/json")
+	wJSON := httptest.NewRecorder()
+	srv.HandleDashboard(wJSON, reqJSON)
+
+	if wJSON.Code != http.StatusOK {
+		t.Fatalf("Expected 200 OK for JSON, got %d", wJSON.Code)
 	}
 }
