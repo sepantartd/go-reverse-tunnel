@@ -6,7 +6,15 @@ import (
 	"log/slog"
 	"os"
 	"strings"
+	"time"
+
+	"github.com/hashicorp/yamux"
 )
+
+type YamuxConfig struct {
+	KeepAliveInterval int `json:"keepalive_interval_sec,omitempty"` // Default: 30s
+	MaxStreamWindowSize uint32 `json:"max_stream_window_size,omitempty"` // Default: 256KB
+}
 
 type ClientMapping struct {
 	ClientID string `json:"client_id"`
@@ -27,20 +35,39 @@ type ServerConfig struct {
 	DashboardAddr     string          `json:"dashboard_addr,omitempty"`
 	WebhookURL        string          `json:"webhook_url,omitempty"`
 	Clients           []ClientMapping `json:"clients"`
+	Yamux             *YamuxConfig    `json:"yamux,omitempty"`
 }
 
 type ClientConfig struct {
-	ServerAddr             string `json:"server_addr"`
-	ClientID               string `json:"client_id"`
-	Token                  string `json:"token"`
-	LocalAddr              string `json:"local_addr"`
-	LogLevel               string `json:"log_level,omitempty"` // debug, info, warn, error
-	TLSCertFile            string `json:"tls_cert_file,omitempty"`
-	TLSKeyFile             string `json:"tls_key_file,omitempty"`
-	TLSCAFile              string `json:"tls_ca_file,omitempty"`
-	InsecureSkipVerify     bool   `json:"insecure_skip_verify,omitempty"`
-	InsecureAllowPlaintext bool   `json:"insecure_allow_plaintext,omitempty"`
-	EnableObfuscation      bool   `json:"enable_obfuscation,omitempty"`
+	ServerAddr             string       `json:"server_addr"`
+	ClientID               string       `json:"client_id"`
+	Token                  string       `json:"token"`
+	LocalAddr              string       `json:"local_addr"`
+	LogLevel               string       `json:"log_level,omitempty"` // debug, info, warn, error
+	TLSCertFile            string       `json:"tls_cert_file,omitempty"`
+	TLSKeyFile             string       `json:"tls_key_file,omitempty"`
+	TLSCAFile              string       `json:"tls_ca_file,omitempty"`
+	InsecureSkipVerify     bool         `json:"insecure_skip_verify,omitempty"`
+	InsecureAllowPlaintext bool         `json:"insecure_allow_plaintext,omitempty"`
+	EnableObfuscation      bool         `json:"enable_obfuscation,omitempty"`
+	Yamux                  *YamuxConfig `json:"yamux,omitempty"`
+}
+
+// GetYamuxConfig converts YamuxConfig struct to yamux.Config
+func GetYamuxConfig(cfg *YamuxConfig) *yamux.Config {
+	yamuxCfg := yamux.DefaultConfig()
+	if cfg == nil {
+		return yamuxCfg
+	}
+
+	if cfg.KeepAliveInterval > 0 {
+		yamuxCfg.EnableKeepAlive = true
+		yamuxCfg.KeepAliveInterval = time.Duration(cfg.KeepAliveInterval) * time.Second
+	}
+	if cfg.MaxStreamWindowSize > 0 {
+		yamuxCfg.MaxStreamWindowSize = cfg.MaxStreamWindowSize
+	}
+	return yamuxCfg
 }
 
 // LoadServerConfig reads and parses the JSON configuration file for the server.
