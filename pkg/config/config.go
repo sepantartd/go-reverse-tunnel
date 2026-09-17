@@ -3,11 +3,14 @@ package config
 import (
 	"fmt"
 	"net"
+	"strconv"
+	"strings"
 )
 
 type ClientMapping struct {
-	ClientID string `json:"client_id"`
-	Ports    []int  `json:"ports"`
+	ClientID string   `json:"client_id"`
+	Ports    []int    `json:"ports,omitempty"`
+	Ranges   []string `json:"ranges,omitempty"` // Example: ["10000-10010", "20000-20005"]
 }
 
 type ServerConfig struct {
@@ -35,6 +38,30 @@ type ClientConfig struct {
 	InsecureSkipVerify    bool   `json:"insecure_skip_verify"`
 }
 
+func parsePortRange(r string) ([]int, error) {
+	parts := strings.Split(r, "-")
+	if len(parts) != 2 {
+		return nil, fmt.Errorf("invalid range format %s (expected start-end)", r)
+	}
+	start, err := strconv.Atoi(strings.TrimSpace(parts[0]))
+	if err != nil {
+		return nil, fmt.Errorf("invalid start port in range %s", r)
+	}
+	end, err := strconv.Atoi(strings.TrimSpace(parts[1]))
+	if err != nil {
+		return nil, fmt.Errorf("invalid end port in range %s", r)
+	}
+	if start > end || start <= 0 || end > 65535 {
+		return nil, fmt.Errorf("out of bound range %d-%d", start, end)
+	}
+
+	var ports []int
+	for p := start; p <= end; p++ {
+		ports = append(ports, p)
+	}
+	return ports, nil
+}
+
 func (c *ServerConfig) Validate() error {
 	if c.ControlAddr == "" {
 		return fmt.Errorf("control_addr is required")
@@ -52,7 +79,8 @@ func (c *ServerConfig) Validate() error {
 	portMap := make(map[int]string)
 	clientMap := make(map[string]bool)
 
-	for _, client := range c.Clients {
+	for i := range c.Clients {
+		client := &c.Clients[i]
 		if client.ClientID == "" {
 			return fmt.Errorf("client_id cannot be empty")
 		}
@@ -61,16 +89,23 @@ func (c *ServerConfig) Validate() error {
 		}
 		clientMap[client.ClientID] = true
 
+		// Expand ranges into Ports list
+		for _, r := range client.Ranges {
+			expanded, err := parsePortRange(r)
+			if err != nil {
+				return fmt.Errorf("client %s range error: %v", client.ClientID, err)
+			}
+			client.Ports = append(client.Ports, expanded...)
+		}
+
 		for _, port := range client.Ports {
-			if port < 0 || port > 65535 {
+			if port <= 0 || port > 65535 {
 				return fmt.Errorf("invalid port %d for client %s", port, client.ClientID)
 			}
-			if port > 0 {
-				if owner, exists := portMap[port]; exists {
-					return fmt.Errorf("port collision: port %d requested by %s is already assigned to %s", port, client.ClientID, owner)
-				}
-				portMap[port] = client.ClientID
+			if owner, exists := portMap[port]; exists {
+				return fmt.Errorf("port collision: port %d requested by %s is already assigned to %s", port, client.ClientID, owner)
 			}
+			portMap[port] = client.ClientID
 		}
 	}
 	return nil
