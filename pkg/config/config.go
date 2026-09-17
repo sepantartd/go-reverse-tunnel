@@ -1,10 +1,8 @@
 package config
 
 import (
-	"errors"
 	"fmt"
 	"net"
-	"strconv"
 )
 
 type ClientMapping struct {
@@ -13,79 +11,66 @@ type ClientMapping struct {
 }
 
 type ServerConfig struct {
-	ControlAddr string          `json:"control_addr"`
-	Token       string          `json:"token"`
-	EnableTLS   bool            `json:"enable_tls"`
-	CertFile    string          `json:"cert_file"`
-	KeyFile     string          `json:"key_file"`
-	CAFile      string          `json:"ca_file"`
-	Clients     []ClientMapping `json:"clients"`
+	ControlAddr           string          `json:"control_addr"`
+	Token                 string          `json:"token"`
+	Clients               []ClientMapping `json:"clients"`
+	TLSCertFile           string          `json:"tls_cert_file"`
+	TLSKeyFile            string          `json:"tls_key_file"`
+	TLSCAFile             string          `json:"tls_ca_file"`
+	InsecureAllowPlaintext bool            `json:"insecure_allow_plaintext"`
+	DashboardAddr         string          `json:"dashboard_addr"`
+	DashboardUser         string          `json:"dashboard_user"`
+	DashboardPass         string          `json:"dashboard_pass"`
 }
 
 type ClientConfig struct {
-	ServerAddr    string `json:"server_addr"`
-	LocalAddr     string `json:"local_addr"`
-	ClientID      string `json:"client_id"`
-	Token         string `json:"token"`
-	EnableTLS     bool   `json:"enable_tls"`
-	CAFile        string `json:"ca_file"`
-	CertFile      string `json:"cert_file"`
-	KeyFile       string `json:"key_file"`
-	TLSSkipVerify bool   `json:"tls_skip_verify"`
-}
-
-func validateHostPort(addr string) error {
-	host, portStr, err := net.SplitHostPort(addr)
-	if err != nil {
-		return fmt.Errorf("invalid address format '%s': %w", addr, err)
-	}
-	_ = host
-	port, err := strconv.Atoi(portStr)
-	if err != nil || port < 1 || port > 65535 {
-		return fmt.Errorf("invalid port '%s' in address '%s'", portStr, addr)
-	}
-	return nil
+	ServerAddr            string `json:"server_addr"`
+	LocalAddr             string `json:"local_addr"`
+	ClientID              string `json:"client_id"`
+	Token                 string `json:"token"`
+	TLSCertFile           string `json:"tls_cert_file"`
+	TLSKeyFile            string `json:"tls_key_file"`
+	TLSCAFile             string `json:"tls_ca_file"`
+	InsecureAllowPlaintext bool   `json:"insecure_allow_plaintext"`
+	InsecureSkipVerify    bool   `json:"insecure_skip_verify"`
 }
 
 func (c *ServerConfig) Validate() error {
 	if c.ControlAddr == "" {
-		return errors.New("server control address cannot be empty")
+		return fmt.Errorf("control_addr is required")
 	}
-	if err := validateHostPort(c.ControlAddr); err != nil {
-		return fmt.Errorf("invalid server control_addr: %w", err)
+	if _, _, err := net.SplitHostPort(c.ControlAddr); err != nil {
+		return fmt.Errorf("invalid control_addr format: %v", err)
 	}
 	if c.Token == "" {
-		return errors.New("server token cannot be empty")
+		return fmt.Errorf("token is required")
 	}
-	if c.EnableTLS {
-		if c.CertFile == "" || c.KeyFile == "" {
-			return errors.New("TLS is enabled on server, but CertFile or KeyFile is missing")
-		}
+	if (c.TLSCertFile == "" || c.TLSKeyFile == "") && !c.InsecureAllowPlaintext {
+		return fmt.Errorf("TLS configuration missing (TLSCertFile/TLSKeyFile); set InsecureAllowPlaintext=true to bypass explicitly")
 	}
 
-	seenClients := make(map[string]bool)
-	seenPorts := make(map[int]string)
+	portMap := make(map[int]string)
+	clientMap := make(map[string]bool)
 
 	for _, client := range c.Clients {
 		if client.ClientID == "" {
-			return errors.New("client mapping has an empty ClientID")
+			return fmt.Errorf("client_id cannot be empty")
 		}
-		if seenClients[client.ClientID] {
-			return fmt.Errorf("duplicate ClientID found: %s", client.ClientID)
+		if clientMap[client.ClientID] {
+			return fmt.Errorf("duplicate client_id found: %s", client.ClientID)
 		}
-		seenClients[client.ClientID] = true
+		clientMap[client.ClientID] = true
 
-		if len(client.Ports) == 0 {
-			return fmt.Errorf("client %s has no public ports mapped", client.ClientID)
-		}
 		for _, port := range client.Ports {
-			if port <= 0 || port > 65535 {
-				return fmt.Errorf("invalid port number %d for client %s", port, client.ClientID)
+			if port < 0 || port > 65535 {
+				return fmt.Errorf("invalid port %d for client %s", port, client.ClientID)
 			}
-			if owner, exists := seenPorts[port]; exists {
-				return fmt.Errorf("port collision: port %d is mapped to both '%s' and '%s'", port, owner, client.ClientID)
+			if port > 0 {
+				if owner, exists := portMap[port]; exists {
+					return fmt.Errorf("port collision: port %d requested by %s is already assigned to %s", port, client.ClientID, owner)
+				}
+				portMap[port] = client.ClientID
 			}
-			seenPorts[port] = client.ClientID
 		}
 	}
 	return nil
@@ -93,29 +78,22 @@ func (c *ServerConfig) Validate() error {
 
 func (c *ClientConfig) Validate() error {
 	if c.ServerAddr == "" {
-		return errors.New("client server address cannot be empty")
+		return fmt.Errorf("server_addr is required")
 	}
-	if err := validateHostPort(c.ServerAddr); err != nil {
-		return fmt.Errorf("invalid client server_addr: %w", err)
-	}
-	if c.LocalAddr != "" {
-		if err := validateHostPort(c.LocalAddr); err != nil {
-			return fmt.Errorf("invalid client local_addr: %w", err)
-		}
+	if c.LocalAddr == "" {
+		return fmt.Errorf("local_addr is required")
 	}
 	if c.ClientID == "" {
-		return errors.New("client ID cannot be empty")
+		return fmt.Errorf("client_id is required")
 	}
 	if c.Token == "" {
-		return errors.New("authentication token cannot be empty")
+		return fmt.Errorf("token is required")
 	}
-	if c.EnableTLS {
-		if c.CertFile != "" && c.KeyFile == "" {
-			return errors.New("CertFile specified without KeyFile")
-		}
-		if c.KeyFile != "" && c.CertFile == "" {
-			return errors.New("KeyFile specified without CertFile")
-		}
+	if (c.TLSCertFile != "" && c.TLSKeyFile == "") || (c.TLSCertFile == "" && c.TLSKeyFile != "") {
+		return fmt.Errorf("both TLSCertFile and TLSKeyFile must be provided for client mTLS")
+	}
+	if c.TLSCertFile == "" && !c.InsecureAllowPlaintext {
+		return fmt.Errorf("TLS configuration missing for client; set InsecureAllowPlaintext=true to bypass explicitly")
 	}
 	return nil
 }
