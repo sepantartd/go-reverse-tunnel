@@ -1,93 +1,119 @@
-# Go Reverse Tunnel
+# 🚀 Go Reverse Tunnel
 
-A high-performance, secure, and production-ready reverse tunneling solution written in Go. It enables secure exposure of local services behind NATs or firewalls to the public internet using multiplexed TCP connections.
+A high-performance, secure, and lightweight reverse tunneling solution written in Go. Easily expose local services (behind NAT or firewalls) to the public internet with Built-in TLS, Let's Encrypt (Auto-TLS), Traffic Obfuscation, UDP Forwarding, and a Web Dashboard.
 
-## Key Features
+---
 
-* **Multiplexed Connections**: Powered by `yamux` for efficiently handling multiple streams over a single TCP connection.
-* **Security & TLS/mTLS**: Enforces TLS 1.2+ encryption with optional mutual TLS (mTLS) authentication.
-* **Replay-Resistant Auth**: Implements HMAC-SHA256 challenge-response authentication.
-* **Resource Optimization**: Built-in connection limiting via semaphores and zero-allocation memory pooling with `sync.Pool`.
-* **Observability**: Structured JSON logging (`log/slog`) and native Prometheus metrics (`/metrics`).
-* **Web Management Dashboard**: Embedded Single Page Application (SPA) dashboard for live connection tracking.
-* **Production Ready**: Fully dockerized multi-stage builds and automated GitHub Actions CI/CD pipelines.
+## ✨ Features
 
-## Architecture Overview
+- 🔒 **Cryptographic Replay Protection:** Single-use 32-byte random challenge nonce per session.
+- 🔑 **HMAC-SHA256 Authentication:** Secure token validation with custom `ClientID` mapping.
+- 🌐 **Auto-TLS (Let's Encrypt):** Native support for automatic HTTPS/TLS certificate management.
+- 🎭 **Traffic Obfuscation:** XOR-based handshake mask to bypass strict DPI inspection systems.
+- 🚀 **Multiplexing:** Powered by `yamux` for high-throughput stream multiplexing over a single TCP connection.
+- ⚡ **UDP Forwarding:** Tunnel UDP traffic alongside TCP streams.
+- 📊 **Web Dashboard & Metrics:** Real-time client session monitoring and Prometheus `/metrics` endpoint.
+- 🔔 **Webhook Notifications:** Instant alerts for connection events and security failures.
 
-```
-[ Public Client ] ---> [ Reverse Tunnel Server ] <=== (Multiplexed TLS Tunnel) ===> [ Tunnel Client ] ---> [ Local Service ]
-```
+---
 
-## Installation
+## 🛠️ Installation & Building
 
-### Using Docker
+### Prerequisites
+- Go 1.22 or higher
 
+### Build from Source
 ```bash
-docker pull ghcr.io/sepantartd/go-reverse-tunnel:latest
-```
-
-### From Source
-
-```bash
+# Clone the repository
 git clone [https://github.com/sepantartd/go-reverse-tunnel.git](https://github.com/sepantartd/go-reverse-tunnel.git)
 cd go-reverse-tunnel
-go build -o bin/server ./cmd/server
-go build -o bin/client ./cmd/client
+
+# Build binaries
+go build -o bin/server cmd/server/main.go
+go build -o bin/client cmd/client/main.go
 ```
 
-## Configuration
+---
+
+## 💻 Building for Windows & Termux (Android)
+
+### Windows (PowerShell)
+```powershell
+$env:GOOS="windows"
+$env:GOARCH="amd64"
+go build -o bin/server.exe cmd/server/main.go
+go build -o bin/client.exe cmd/client/main.go
+```
+
+### Cross-Platform Build Scripts
+You can use the provided build scripts for seamless compilation:
+- **Linux / macOS / Termux:** `bash build.sh`
+- **Windows:** `powershell .\build.ps1`
+
+---
+
+## 📱 Running on Termux (Android)
+
+To run the client directly on an Android device via Termux:
+
+1. Open Termux and install the required packages:
+   ```bash
+   pkg update && pkg install golang git
+   ```
+2. Clone the repository and build the client binary:
+   ```bash
+   git clone [https://github.com/sepantartd/go-reverse-tunnel.git](https://github.com/sepantartd/go-reverse-tunnel.git)
+   cd go-reverse-tunnel
+   go build -o client cmd/client/main.go
+   ```
+3. Configure `client_config.json` and start the tunnel:
+   ```bash
+   ./client -config client_config.json
+   ```
+
+---
+
+## ⚙️ Configuration
 
 ### Server Configuration (`server_config.json`)
-
 ```json
 {
-  "control_addr": "0.0.0.0:8080",
-  "token": "your-strong-secret-token",
-  "tls_cert_file": "/path/to/cert.pem",
-  "tls_key_file": "/path/to/key.pem",
-  "insecure_allow_plaintext": false,
-  "dashboard_addr": "0.0.0.0:8081",
-  "dashboard_user": "admin",
-  "dashboard_pass": "securepassword",
+  "control_addr": ":9090",
+  "token": "your-secret-token",
+  "log_level": "info",
+  "enable_obfuscation": true,
+  "dashboard_addr": ":8080",
   "clients": [
     {
-      "client_id": "app-service-1",
-      "ports": [9001, 9002]
+      "client_id": "app-server-1",
+      "ports": [8080, 9000],
+      "udp_ports": [5000]
     }
   ]
 }
 ```
 
 ### Client Configuration (`client_config.json`)
-
 ```json
 {
-  "server_addr": "tunnel.yourdomain.com:8080",
-  "local_addr": "127.0.0.1:3000",
-  "client_id": "app-service-1",
-  "token": "your-strong-secret-token",
-  "tls_cert_file": "/path/to/client-cert.pem",
-  "tls_key_file": "/path/to/client-key.pem",
-  "insecure_allow_plaintext": false
+  "server_addr": "your-server.com:9090",
+  "client_id": "app-server-1",
+  "token": "your-secret-token",
+  "local_addr": "127.0.0.1:80",
+  "log_level": "info",
+  "enable_obfuscation": true
 }
 ```
 
-## Quick Start
+---
 
-1. Start the Tunnel Server:
-   ```bash
-   ./bin/server -config server_config.json
-   ```
+## 🎭 Traffic Obfuscation Testing
 
-2. Start the Tunnel Client:
-   ```bash
-   ./bin/client -config client_config.json
-   ```
-
-3. Access your local service remotely via the exposed public server port (e.g., `http://tunnel.yourdomain.com:9001`).
+To mask tunnel control traffic against Deep Packet Inspection (DPI):
+1. Set `"enable_obfuscation": true` in both `server_config.json` and `client_config.json`.
+2. The initial control handshake will perform a pseudo-random seed mask exchange before initiating the TLS/Yamux session.
 
 ---
 
-## License
-
-Distributed under the MIT License. See `LICENSE` for more information.
+## 📜 License
+MIT License.
