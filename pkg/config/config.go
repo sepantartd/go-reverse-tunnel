@@ -10,20 +10,21 @@ import (
 type ClientMapping struct {
 	ClientID string   `json:"client_id"`
 	Ports    []int    `json:"ports,omitempty"`
-	Ranges   []string `json:"ranges,omitempty"` // Example: ["10000-10010", "20000-20005"]
+	Ranges   []string `json:"ranges,omitempty"`
 }
 
 type ServerConfig struct {
-	ControlAddr           string          `json:"control_addr"`
-	Token                 string          `json:"token"`
-	Clients               []ClientMapping `json:"clients"`
-	TLSCertFile           string          `json:"tls_cert_file"`
-	TLSKeyFile            string          `json:"tls_key_file"`
-	TLSCAFile             string          `json:"tls_ca_file"`
+	ControlAddr            string          `json:"control_addr"`
+	Token                  string          `json:"token"`
+	Clients                []ClientMapping `json:"clients"`
+	TLSCertFile            string          `json:"tls_cert_file"`
+	TLSKeyFile             string          `json:"tls_key_file"`
+	TLSCAFile              string          `json:"tls_ca_file"`
 	InsecureAllowPlaintext bool            `json:"insecure_allow_plaintext"`
-	DashboardAddr         string          `json:"dashboard_addr"`
-	DashboardUser         string          `json:"dashboard_user"`
-	DashboardPass         string          `json:"dashboard_pass"`
+	DashboardAddr          string          `json:"dashboard_addr"`
+	DashboardUser          string          `json:"dashboard_user"`
+	DashboardPass          string          `json:"dashboard_pass"`
+	WebhookURL             string          `json:"webhook_url,omitempty"` // URL for Telegram/Discord/Custom webhook
 }
 
 type ClientConfig struct {
@@ -89,7 +90,6 @@ func (c *ServerConfig) Validate() error {
 		}
 		clientMap[client.ClientID] = true
 
-		// Expand ranges into Ports list
 		for _, r := range client.Ranges {
 			expanded, err := parsePortRange(r)
 			if err != nil {
