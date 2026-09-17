@@ -7,18 +7,20 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"net"
 	"net/http"
+	"os"
 	"sync"
 
 	"github.com/hashicorp/yamux"
 	"github.com/sepantartd/go-reverse-tunnel/pkg/config"
+	"github.com/sepantartd/go-reverse-tunnel/pkg/metrics"
 )
 
 var bufferPool = sync.Pool{
 	New: func() interface{} {
-		b := make([]byte, 32*1024) // 32KB reusable buffer
+		b := make([]byte, 32*1024)
 		return &b
 	},
 }
@@ -31,22 +33,27 @@ type ClientSession struct {
 }
 
 type TunnelServer struct {
-	config      *config.ServerConfig
-	clients     map[string]*ClientSession
-	listeners   map[int]net.Listener
-	ctrlLn      net.Listener
-	mu          sync.RWMutex
-	connSem     chan struct{} // Semaphore for controlling concurrent public connections
-	closeCtx    chan struct{}
-	closeOnce   sync.Once
+	config    *config.ServerConfig
+	clients   map[string]*ClientSession
+	listeners map[int]net.Listener
+	ctrlLn    net.Listener
+	logger    *slog.Logger
+	mu        sync.RWMutex
+	connSem   chan struct{}
+	closeCtx  chan struct{}
+	closeOnce sync.Once
 }
 
 func NewTunnelServer(cfg *config.ServerConfig) *TunnelServer {
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	metrics.Register()
+
 	return &TunnelServer{
 		config:    cfg,
 		clients:   make(map[string]*ClientSession),
 		listeners: make(map[int]net.Listener),
-		connSem:   make(chan struct{}, 10000), // Max 10,000 active concurrent public connections
+		logger:    logger,
+		connSem:   make(chan struct{}, 10000),
 		closeCtx:  make(chan struct{}),
 	}
 }
@@ -72,10 +79,14 @@ func (s *TunnelServer) Start() error {
 	}
 	defer s.ctrlLn.Close()
 
+	s.logger.Info("Control server started", slog.String("addr", s.config.ControlAddr))
+
 	if s.config.DashboardAddr != "" {
 		go func() {
 			mux := http.NewServeMux()
 			mux.HandleFunc("/dashboard", s.HandleDashboard)
+			mux.Handle("/metrics", metrics.Handler())
+			s.logger.Info("Dashboard and Metrics server listening", slog.String("addr", s.config.DashboardAddr))
 			_ = http.ListenAndServe(s.config.DashboardAddr, mux)
 		}()
 	}
@@ -87,7 +98,7 @@ func (s *TunnelServer) Start() error {
 			case <-s.closeCtx:
 				return nil
 			default:
-				log.Printf("[Server] Control accept error: %v", err)
+				s.logger.Error("Control accept error", slog.String("error", err.Error()))
 				continue
 			}
 		}
@@ -115,7 +126,8 @@ func (s *TunnelServer) handleControlConnection(conn net.Conn) {
 	expectedResponse := hex.EncodeToString(mac.Sum(nil))
 
 	if stringsTrim(clientResponse) != expectedResponse {
-		log.Printf("[Server] Auth failed for connection: %s", conn.RemoteAddr().String())
+		metrics.AuthFailures.Inc()
+		s.logger.Warn("Auth failed for connection", slog.String("remote_addr", conn.RemoteAddr().String()))
 		return
 	}
 
@@ -125,7 +137,6 @@ func (s *TunnelServer) handleControlConnection(conn net.Conn) {
 	}
 	defer session.Close()
 
-	// Assign Client
 	s.mu.Lock()
 	var assignedClient *config.ClientMapping
 	if len(s.config.Clients) > 0 {
@@ -146,15 +157,19 @@ func (s *TunnelServer) handleControlConnection(conn net.Conn) {
 		Session:    session,
 	}
 	s.clients[clientID] = clientSession
+	metrics.ActiveClients.Inc()
 	s.mu.Unlock()
+
+	s.logger.Info("Client authenticated successfully", slog.String("client_id", clientID), slog.String("remote_addr", conn.RemoteAddr().String()))
 
 	defer func() {
 		s.mu.Lock()
 		delete(s.clients, clientID)
+		metrics.ActiveClients.Dec()
 		s.mu.Unlock()
+		s.logger.Info("Client disconnected", slog.String("client_id", clientID))
 	}()
 
-	// Open Public Ports
 	for _, port := range ports {
 		go s.listenPublicPort(port, session)
 	}
@@ -177,11 +192,14 @@ func (s *TunnelServer) listenPublicPort(port int, session *yamux.Session) {
 	}
 	ln, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
 	if err != nil {
+		s.logger.Error("Failed to listen on public port", slog.Int("port", port), slog.String("error", err.Error()))
 		s.mu.Unlock()
 		return
 	}
 	s.listeners[port] = ln
 	s.mu.Unlock()
+
+	s.logger.Info("Public listener bound", slog.Int("port", port))
 
 	defer func() {
 		ln.Close()
@@ -203,7 +221,7 @@ func (s *TunnelServer) listenPublicPort(port int, session *yamux.Session) {
 				s.routePublicTraffic(c, session)
 			}(publicConn)
 		default:
-			log.Printf("[Server] Semaphore full, dropping public connection on port %d", port)
+			s.logger.Warn("Semaphore full, dropping connection", slog.Int("port", port))
 			publicConn.Close()
 		}
 	}
@@ -218,6 +236,9 @@ func (s *TunnelServer) routePublicTraffic(publicConn net.Conn, session *yamux.Se
 	}
 	defer stream.Close()
 
+	metrics.ActiveStreams.Inc()
+	defer metrics.ActiveStreams.Dec()
+
 	var wg sync.WaitGroup
 	wg.Add(2)
 
@@ -225,14 +246,16 @@ func (s *TunnelServer) routePublicTraffic(publicConn net.Conn, session *yamux.Se
 		defer wg.Done()
 		bufPtr := bufferPool.Get().(*[]byte)
 		defer bufferPool.Put(bufPtr)
-		_, _ = io.CopyBuffer(stream, publicConn, *bufPtr)
+		n, _ := io.CopyBuffer(stream, publicConn, *bufPtr)
+		metrics.BytesTransferred.WithLabelValues("ingress").Add(float64(n))
 	}()
 
 	go func() {
 		defer wg.Done()
 		bufPtr := bufferPool.Get().(*[]byte)
 		defer bufferPool.Put(bufPtr)
-		_, _ = io.CopyBuffer(publicConn, stream, *bufPtr)
+		n, _ := io.CopyBuffer(publicConn, stream, *bufPtr)
+		metrics.BytesTransferred.WithLabelValues("egress").Add(float64(n))
 	}()
 
 	wg.Wait()
