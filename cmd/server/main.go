@@ -1,10 +1,9 @@
 package main
 
 import (
-	"encoding/json"
 	"flag"
+	"fmt"
 	"log"
-	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -14,57 +13,31 @@ import (
 )
 
 func main() {
-	configPath := flag.String("config", "configs/server.json", "Path to server configuration file")
+	configPath := flag.String("config", "server_config.json", "Path to server configuration file")
 	flag.Parse()
 
-	file, err := os.ReadFile(*configPath)
+	cfg, err := config.LoadServerConfig(*configPath)
 	if err != nil {
-		log.Fatalf("[Server] Failed to read config file: %v", err)
+		log.Fatalf("Failed to load server config: %v", err)
 	}
 
-	var cfg config.ServerConfig
-	if err := json.Unmarshal(file, &cfg); err != nil {
-		log.Fatalf("[Server] Failed to parse config JSON: %v", err)
-	}
+	logger := config.SetupLogger(cfg.LogLevel)
+	logger.Info("Starting Go Reverse Tunnel Server...")
 
-	if err := cfg.Validate(); err != nil {
-		log.Fatalf("[Server] Configuration validation failed: %v", err)
-	}
+	srv := server.NewTunnelServer(cfg)
 
-	srv := server.NewTunnelServer(&cfg)
-
-	// Setup dashboard HTTP listener if token is configured
-	if cfg.Token != "" {
-		http.HandleFunc("/status", srv.HandleDashboard)
-		go func() {
-			log.Println("[Server] Status dashboard listening on :8080/status")
-			if err := http.ListenAndServe(":8080", nil); err != nil {
-				log.Printf("[Server] Dashboard server notice: %v", err)
-			}
-		}()
-	}
-
-	// Setup signal channel for graceful shutdown
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
-
-	serverErr := make(chan error, 1)
 	go func() {
-		log.Println("[Server] Starting tunnel server core...")
-		serverErr <- srv.Start()
+		if err := srv.Start(); err != nil {
+			logger.Error("Server execution error", "error", err)
+			os.Exit(1)
+		}
 	}()
 
-	select {
-	case sig := <-sigChan:
-		log.Printf("[Server] Received signal %v, initiating graceful shutdown...", sig)
-		if err := srv.Close(); err != nil {
-			log.Printf("[Server] Error during server close: %v", err)
-		}
-	case err := <-serverErr:
-		if err != nil {
-			log.Printf("[Server] Server stopped with error: %v", err)
-		}
-	}
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+	<-sigChan
 
-	log.Println("[Server] Shutdown complete.")
+	logger.Info("Shutting down server gracefully...")
+	_ = srv.Close()
+	fmt.Println("Server stopped.")
 }
