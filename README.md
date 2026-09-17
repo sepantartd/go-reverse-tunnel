@@ -106,11 +106,14 @@ To run the client directly on an Android device via Termux:
 
 ## Advanced Configuration
 
-For high-latency networks or unstable connections, you can fine-tune the internal Yamux multiplexer settings in the configuration files.
+For high-latency networks or unstable connections, you can fine-tune the internal Yamux multiplexer settings and dashboard configuration in the options file.
 
 ### Yamux Parameters
 - `keepalive_interval_sec`: Heartbeat keep-alive ping interval in seconds (default: 30s).
 - `max_stream_window_size`: Stream window size in bytes for high-throughput link tuning (default: 256KB).
+
+### Dashboard and Metrics
+- `dashboard_addr`: Specifies the binding address for the web dashboard and Prometheus `/metrics` endpoint (e.g., `:8080`).
 
 ### Traffic Obfuscation Testing
 To mask tunnel control traffic against Deep Packet Inspection (DPI):
