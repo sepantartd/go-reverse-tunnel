@@ -1,23 +1,20 @@
-# 🚀 Go Reverse Tunnel
+# Go Reverse Tunnel
 
-A high-performance, secure, and lightweight reverse tunneling solution written in Go. Easily expose local services (behind NAT or firewalls) to the public internet with Built-in TLS, Let's Encrypt (Auto-TLS), Traffic Obfuscation, UDP Forwarding, and a Web Dashboard.
+A high-performance, secure, and lightweight reverse tunneling solution written in Go. Easily expose local services behind NAT or firewalls to the public internet with built-in TLS, Let's Encrypt (Auto-TLS), Traffic Obfuscation, UDP Forwarding, Rate Limiting, and a Web Dashboard.
 
----
+## Features
 
-## ✨ Features
+- **Cryptographic Replay Protection:** Single-use 32-byte random challenge nonce per session.
+- **HMAC-SHA256 Authentication:** Secure token validation with custom ClientID mapping.
+- **Rate Limiting:** Built-in connection rate limiting per IP to prevent brute-force attacks.
+- **Auto-TLS (Let's Encrypt):** Native support for automatic HTTPS/TLS certificate management.
+- **Traffic Obfuscation:** XOR-based handshake masking to bypass strict DPI inspection systems.
+- **Multiplexing:** Powered by Yamux for high-throughput stream multiplexing over a single TCP connection.
+- **UDP Forwarding:** Tunnel UDP traffic alongside standard TCP streams.
+- **Web Dashboard & Metrics:** Real-time client session monitoring and Prometheus `/metrics` endpoint.
+- **Webhook Notifications:** Instant alerts for connection events and security failures.
 
-- 🔒 **Cryptographic Replay Protection:** Single-use 32-byte random challenge nonce per session.
-- 🔑 **HMAC-SHA256 Authentication:** Secure token validation with custom `ClientID` mapping.
-- 🌐 **Auto-TLS (Let's Encrypt):** Native support for automatic HTTPS/TLS certificate management.
-- 🎭 **Traffic Obfuscation:** XOR-based handshake mask to bypass strict DPI inspection systems.
-- 🚀 **Multiplexing:** Powered by `yamux` for high-throughput stream multiplexing over a single TCP connection.
-- ⚡ **UDP Forwarding:** Tunnel UDP traffic alongside TCP streams.
-- 📊 **Web Dashboard & Metrics:** Real-time client session monitoring and Prometheus `/metrics` endpoint.
-- 🔔 **Webhook Notifications:** Instant alerts for connection events and security failures.
-
----
-
-## 🛠️ Installation & Building
+## Installation & Building
 
 ### Prerequisites
 - Go 1.22 or higher
@@ -33,9 +30,7 @@ go build -o bin/server cmd/server/main.go
 go build -o bin/client cmd/client/main.go
 ```
 
----
-
-## 💻 Building for Windows & Termux (Android)
+## Building for Windows & Termux (Android)
 
 ### Windows (PowerShell)
 ```powershell
@@ -46,13 +41,11 @@ go build -o bin/client.exe cmd/client/main.go
 ```
 
 ### Cross-Platform Build Scripts
-You can use the provided build scripts for seamless compilation:
+You can use the provided build scripts for compilation:
 - **Linux / macOS / Termux:** `bash build.sh`
 - **Windows:** `powershell .\build.ps1`
 
----
-
-## 📱 Running on Termux (Android)
+## Running on Termux (Android)
 
 To run the client directly on an Android device via Termux:
 
@@ -71,9 +64,7 @@ To run the client directly on an Android device via Termux:
    ./client -config client_config.json
    ```
 
----
-
-## ⚙️ Configuration
+## Configuration
 
 ### Server Configuration (`server_config.json`)
 ```json
@@ -83,6 +74,10 @@ To run the client directly on an Android device via Termux:
   "log_level": "info",
   "enable_obfuscation": true,
   "dashboard_addr": ":8080",
+  "yamux": {
+    "keepalive_interval_sec": 15,
+    "max_stream_window_size": 524288
+  },
   "clients": [
     {
       "client_id": "app-server-1",
@@ -101,19 +96,26 @@ To run the client directly on an Android device via Termux:
   "token": "your-secret-token",
   "local_addr": "127.0.0.1:80",
   "log_level": "info",
-  "enable_obfuscation": true
+  "enable_obfuscation": true,
+  "yamux": {
+    "keepalive_interval_sec": 15,
+    "max_stream_window_size": 524288
+  }
 }
 ```
 
----
+## Advanced Configuration
 
-## 🎭 Traffic Obfuscation Testing
+For high-latency networks or unstable connections, you can fine-tune the internal Yamux multiplexer settings in the configuration files.
 
+### Yamux Parameters
+- `keepalive_interval_sec`: Heartbeat keep-alive ping interval in seconds (default: 30s).
+- `max_stream_window_size`: Stream window size in bytes for high-throughput link tuning (default: 256KB).
+
+### Traffic Obfuscation Testing
 To mask tunnel control traffic against Deep Packet Inspection (DPI):
 1. Set `"enable_obfuscation": true` in both `server_config.json` and `client_config.json`.
-2. The initial control handshake will perform a pseudo-random seed mask exchange before initiating the TLS/Yamux session.
+2. The initial control handshake will perform a seed mask exchange before initiating the TLS/Yamux session.
 
----
-
-## 📜 License
+## License
 MIT License.
