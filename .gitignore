@@ -10,3 +10,8 @@
 *.swp
 *.exe
 bin/
+*.pem
+*.crt
+*.key
+certs/
+
