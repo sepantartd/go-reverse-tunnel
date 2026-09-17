@@ -8,8 +8,9 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"net"
+	"os"
 	"sync"
 	"time"
 
@@ -24,6 +25,8 @@ var clientBufferPool = sync.Pool{
 	},
 }
 
+var logger = slog.New(slog.NewJSONHandler(os.Stdout, nil))
+
 func RunClient(ctx context.Context, cfg *config.ClientConfig) error {
 	backoff := time.Second
 	maxBackoff := 30 * time.Second
@@ -37,7 +40,7 @@ func RunClient(ctx context.Context, cfg *config.ClientConfig) error {
 
 		err := connectAndServe(ctx, cfg)
 		if err != nil {
-			log.Printf("[Client] Connection error: %v. Reconnecting in %v...", err, backoff)
+			logger.Error("Client connection error", slog.String("error", err.Error()), slog.Duration("reconnect_in", backoff))
 		}
 
 		select {
@@ -71,7 +74,6 @@ func connectAndServe(ctx context.Context, cfg *config.ClientConfig) error {
 	}
 	defer conn.Close()
 
-	// Read challenge
 	buf := make([]byte, 1024)
 	n, err := conn.Read(buf)
 	if err != nil {
@@ -79,7 +81,6 @@ func connectAndServe(ctx context.Context, cfg *config.ClientConfig) error {
 	}
 	challenge := buf[:n]
 
-	// Compute HMAC
 	mac := hmac.New(sha256.New, []byte(cfg.Token))
 	mac.Write(challenge)
 	response := hex.EncodeToString(mac.Sum(nil)) + "\n"
@@ -93,6 +94,8 @@ func connectAndServe(ctx context.Context, cfg *config.ClientConfig) error {
 		return fmt.Errorf("failed to create yamux client session: %v", err)
 	}
 	defer session.Close()
+
+	logger.Info("Connected to tunnel server successfully", slog.String("server_addr", cfg.ServerAddr))
 
 	for {
 		select {
@@ -115,7 +118,7 @@ func handleStream(stream *yamux.Stream, localAddr string) {
 
 	targetConn, err := net.Dial("tcp", localAddr)
 	if err != nil {
-		log.Printf("[Client] Failed to connect to local target %s: %v", localAddr, err)
+		logger.Error("Failed to connect to local target", slog.String("local_addr", localAddr), slog.String("error", err.Error()))
 		return
 	}
 	defer targetConn.Close()
