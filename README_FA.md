@@ -1,93 +1,119 @@
-# Go Reverse Tunnel
+# 🚀 Go Reverse Tunnel
 
-یک ابزار معکوس‌سازی تونل (Reverse Tunnel) پرقدرت، امن و آماده استفاده در محیط‌های پروداکشن که با زبان Go پیاده‌سازی شده است. این پروژه به شما امکان می‌دهد سرویس‌های داخلی خود را که پشت NAT یا فایروال هستند، به صورت امن و از طریق اتصالات TCP چندگانه‌سازی‌شده (Multiplexed) در اینترنت منتشر کنید.
+یک ابزار **Reverse Tunneling** قدرتمند، امن و سبک که به زبان Go نوشته شده است. این پروژه به شما اجازه می‌دهد سرویس‌های محلی (پشت NAT یا فایروال) را به سادگی و با امنیت بالا به اینترنت عمومی متصل کنید.
 
-## ویژگی‌های کلیدی
+---
 
-* **مالتی‌پلاکسینگ پیشرفته**: استفاده از `yamux` جهت مدیریت چندین جریان دیتایی روی یک اتصال واحد TCP.
-* **امنیت بالا و TLS/mTLS**: رمزنگاری اتصالات با TLS 1.2+ و پشتیبانی از احرازهویت دوطرفه (mTLS).
-* **احرازهویت مقاوم در برابر Replay Attack**: مکانیزم Challenge-Response بر پایه HMAC-SHA256.
-* **مدیریت بهینه منابع**: محدودسازی اتصالات همزمان با Semaphore و کاهش تخصیص حافظه با `sync.Pool`.
-* **پایش و لاگینگ ساختاریافته**: ارائه لاگ‌های JSON با `log/slog` و خروجی استانداردهای پرومتیوس (`/metrics`).
-* **داشبورد مدیریتی وب**: پنل گرافیکی وب (Embedded) جهت مشاهده وضعیت لحظه‌ای کلاینت‌ها و پورت‌ها.
-* **آماده‌سازی پروداکشن**: ایمیج چندمرحله‌ای Docker و پایپ‌لاین آماده GitHub Actions CI/CD.
+## ✨ ویژگی‌های کلیدی
 
-## معماری سیستم
+- 🔒 **امنیت Cryptographic و ضد Replay Attack:** بهره‌گیری از Challenge Nonce تصادفی ۳۲ بایتی یک‌بارمصرف برای هر نشست.
+- 🔑 **احراز هویت HMAC-SHA256:** اعتبارسنجی دقیق Token به همراه نگاشت سفارشی `ClientID`.
+- 🌐 **پشتیبانی از Auto-TLS (Let's Encrypt):** دریافت و تمدید خودکار گواهی TLS/HTTPS بدون نیاز به ابزار خارجی.
+- 🎭 **مخفی‌سازی ترافیک (Traffic Obfuscation):** ماسک‌گذاری الگوریتمی بر اساس XOR جهت عبور از سیستم‌های DPI و سانسور شبکه.
+- 🚀 **مالتی‌پلی‌کسینگ پیشرفته:** استفاده از کتابخانه `yamux` جهت انتقال چند جریان داده روی یک اتصال TCP.
+- ⚡ **پشتیبانی از UDP Forwarding:** امکان تونل‌سازی ترافیک UDP در کنار TCP.
+- 📊 **داشبورد وب و لاگ‌گیری مدرن:** نمایش زنده وضعیت کلاینت‌ها، Uptime و ارائه Endpoint استاندارد `/metrics` پرومتیوس.
+- 🔔 **وب‌هوک هوشمند:** ارسال گزارش رویدادهای اتصال، قطع اتصال و خطاهای امنیتی.
 
-```
-[ کاربر عمومی ] ---> [ سرور تونل معکوس ] <=== (تونل امن TLS) ===> [ کلاینت تونل ] ---> [ سرویس محلی ]
-```
+---
 
-## نصب و راه‌اندازی
+## 🛠️ نصب و ساخت (Build)
 
-### استفاده از داکر
+### پیش‌نیازها
+- نسخه Go 1.22 یا بالاتر
 
+### ساخت فایل‌های اجرایی
 ```bash
-docker pull ghcr.io/sepantartd/go-reverse-tunnel:latest
-```
-
-### کامپایل از سورس‌کد
-
-```bash
+# کلون کردن ریپازیتوری
 git clone [https://github.com/sepantartd/go-reverse-tunnel.git](https://github.com/sepantartd/go-reverse-tunnel.git)
 cd go-reverse-tunnel
-go build -o bin/server ./cmd/server
-go build -o bin/client ./cmd/client
+
+# ساخت سرور و کلاینت
+go build -o bin/server cmd/server/main.go
+go build -o bin/client cmd/client/main.go
 ```
 
-## نمونه پیکربندی
+---
 
-### فایل کانفیگ سرور (`server_config.json`)
+## 💻 ساخت اختصاصی برای ویندوز و Termux (اندروید)
 
+### ساخت برای ویندوز (PowerShell)
+```powershell
+$env:GOOS="windows"
+$env:GOARCH="amd64"
+go build -o bin/server.exe cmd/server/main.go
+go build -o bin/client.exe cmd/client/main.go
+```
+
+### اجرای اسکریپت ساخت چندپلتفرمی
+می‌توانید از اسکریپت‌های آماده پروژه استفاده کنید:
+- **لینوکس / مک / ترموکس:** `bash build.sh`
+- **ویندوز:** `powershell .\build.ps1`
+
+---
+
+## 📱 راهنمای اجرا روی Termux (اندروید)
+
+برای اجرای کلاینت روی گوشی‌های اندرویدی از طریق Termux:
+
+1. برنامه Termux را باز کرده و بسته‌های مورد نیاز را نصب کنید:
+   ```bash
+   pkg update && pkg install golang git
+   ```
+2. پروژه را کلون کرده و فایل کلاینت را بسازید:
+   ```bash
+   git clone [https://github.com/sepantartd/go-reverse-tunnel.git](https://github.com/sepantartd/go-reverse-tunnel.git)
+   cd go-reverse-tunnel
+   go build -o client cmd/client/main.go
+   ```
+3. فایل کانفیگ `client_config.json` را تنظیم کرده و اجرا کنید:
+   ```bash
+   ./client -config client_config.json
+   ```
+
+---
+
+## ⚙️ پیکربندی (Configuration)
+
+### تنظیمات سرور (`server_config.json`)
 ```json
 {
-  "control_addr": "0.0.0.0:8080",
-  "token": "توکن-امنیتی-بسیار-قوی",
-  "tls_cert_file": "/path/to/cert.pem",
-  "tls_key_file": "/path/to/key.pem",
-  "insecure_allow_plaintext": false,
-  "dashboard_addr": "0.0.0.0:8081",
-  "dashboard_user": "admin",
-  "dashboard_pass": "رمزعبور-داشبورد",
+  "control_addr": ":9090",
+  "token": "your-secret-token",
+  "log_level": "info",
+  "enable_obfuscation": true,
+  "dashboard_addr": ":8080",
   "clients": [
     {
-      "client_id": "app-service-1",
-      "ports": [9001, 9002]
+      "client_id": "app-server-1",
+      "ports": [8080, 9000],
+      "udp_ports": [5000]
     }
   ]
 }
 ```
 
-### فایل کانفیگ کلاینت (`client_config.json`)
-
+### تنظیمات کلاینت (`client_config.json`)
 ```json
 {
-  "server_addr": "tunnel.yourdomain.com:8080",
-  "local_addr": "127.0.0.1:3000",
-  "client_id": "app-service-1",
-  "token": "توکن-امنیتی-بسیار-قوی",
-  "tls_cert_file": "/path/to/client-cert.pem",
-  "tls_key_file": "/path/to/client-key.pem",
-  "insecure_allow_plaintext": false
+  "server_addr": "your-server.com:9090",
+  "client_id": "app-server-1",
+  "token": "your-secret-token",
+  "local_addr": "127.0.0.1:80",
+  "log_level": "info",
+  "enable_obfuscation": true
 }
 ```
 
-## راهنمای اجرای سریع
+---
 
-۱. اجرا و بالا آوردن سرور تونل:
-```bash
-./bin/server -config server_config.json
-```
+## 🎭 تست و فعال‌سازی Obfuscation
 
-۲. اجرا و اتصال کلاینت تونل:
-```bash
-./bin/client -config client_config.json
-```
-
-۳. دسترسی به سرویس محلی از طریق پورت عمومی سرور (مانند `http://tunnel.yourdomain.com:9001`).
+برای عبور از سیستم‌های بازرسی عمیق بسته (DPI):
+1. مقادیر `"enable_obfuscation": true` را در هر دو فایل تنظیمات سرور و کلاینت قرار دهید.
+2. هاندشیک اولیه پیش از برقراری نشست TLS و Yamux به صورت ماسک‌شده تبادل خواهد شد.
 
 ---
 
-## لایسنس
-
-این پروژه تحت لایسنس MIT منتشر شده است. برای اطلاعات بیشتر فایل `LICENSE` را مطالعه کنید.
+## 📜 مجوز (License)
+این پروژه تحت مجوز **MIT** منتشر شده است.
