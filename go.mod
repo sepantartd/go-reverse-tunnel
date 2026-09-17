@@ -1,12 +1,9 @@
 module github.com/sepantartd/go-reverse-tunnel
 
-go 1.26.4
-
-require github.com/hashicorp/yamux v0.1.2
+go 1.22
 
 require (
-	github.com/armon/go-socks5 v0.0.0-20160902184237-e75332964ef5
-	github.com/golang/snappy v1.0.0
+	github.com/hashicorp/yamux v0.1.1
+	github.com/prometheus/client_golang v1.19.0
+	golang.org/x/crypto v0.21.0
 )
-
-require golang.org/x/net v0.59.0 // indirect
