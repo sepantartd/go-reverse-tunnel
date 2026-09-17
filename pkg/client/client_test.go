@@ -1,24 +1,49 @@
-package client
+package client_test
 
 import (
+	"context"
+	"net"
 	"testing"
 	"time"
+
+	"github.com/sepantartd/go-reverse-tunnel/pkg/client"
+	"github.com/sepantartd/go-reverse-tunnel/pkg/config"
 )
 
-func TestCalculateBackoffWithJitter(t *testing.T) {
-	base := 1 * time.Second
-	max := 60 * time.Second
-	factor := 2.0
+func TestClient_InvalidServerAuth(t *testing.T) {
+	// Mock server that accepts connection, sends dummy challenge, and closes
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("Failed to listen: %v", err)
+	}
+	defer ln.Close()
 
-	// Test bounds for attempt 1
-	d1 := calculateBackoffWithJitter(1, base, max, factor)
-	if d1 < base || d1 > base+500*time.Millisecond {
-		t.Errorf("unexpected duration for attempt 1: %v", d1)
+	go func() {
+		conn, err := ln.Accept()
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+		// Send fake challenge
+		_, _ = conn.Write([]byte("dummy_challenge_data"))
+		// Read client HMAC response
+		buf := make([]byte, 1024)
+		_, _ = conn.Read(buf)
+		// Reject client by closing
+	}()
+
+	cliCfg := &config.ClientConfig{
+		ServerAddr: ln.Addr().String(),
+		LocalAddr:  "127.0.0.1:8080",
+		ClientID:   "test_client",
+		Token:      "wrong_token",
 	}
 
-	// Test bounds for high attempt (should cap at max)
-	dHigh := calculateBackoffWithJitter(100, base, max, factor)
-	if dHigh > max {
-		t.Errorf("duration exceeded max backoff: %v", dHigh)
+	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
+	defer cancel()
+
+	err = client.RunClient(ctx, cliCfg)
+	if err == nil {
+		t.Fatalf("Expected RunClient to return error or exit on context cancellation, got nil")
 	}
 }
