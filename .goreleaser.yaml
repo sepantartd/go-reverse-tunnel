@@ -1,13 +1,15 @@
 version: 1
 
+project_name: go-reverse-tunnel
+
 before:
   hooks:
     - go mod tidy
 
 builds:
-  - id: go-reverse-tunnel
-    main: ./cmd/server # یا مسیر اصلی main پروژه شما (مثلاً ./cmd/tunnel)
-    binary: go-reverse-tunnel
+  - id: "server"
+    main: "./cmd/server"
+    binary: "server"
     env:
       - CGO_ENABLED=0
     goos:
@@ -17,10 +19,19 @@ builds:
     goarch:
       - amd64
       - arm64
-      - 386
-    ignore:
-      - goos: darwin
-        goarch: 386
+
+  - id: "client"
+    main: "./cmd/client"
+    binary: "client"
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - windows
+      - darwin
+    goarch:
+      - amd64
+      - arm64
 
 archives:
   - format: tar.gz
@@ -33,7 +44,7 @@ checksum:
   name_template: "checksums.txt"
 
 snapshot:
-  version_template: "{{ .Tag }}-next"
+  name_template: "{{ .Tag }}-next"
 
 changelog:
   sort: asc
@@ -41,3 +52,4 @@ changelog:
     exclude:
       - "^docs:"
       - "^test:"
+      
