@@ -35,6 +35,11 @@ var (
 		Name: "tunnel_rate_limit_triggers_total",
 		Help: "Total number of connections dropped due to rate limiting",
 	})
+
+	ConnectionDrops = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "tunnel_connection_drops_total",
+		Help: "Total number of unexpected connection drops during stream transfer",
+	})
 )
 
 func Register() {
@@ -44,6 +49,7 @@ func Register() {
 		prometheus.MustRegister(BytesTransferred)
 		prometheus.MustRegister(AuthFailures)
 		prometheus.MustRegister(RateLimitTriggers)
+		prometheus.MustRegister(ConnectionDrops)
 	})
 }
 
