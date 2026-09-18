@@ -1,7 +1,6 @@
 package udp
 
 import (
-	"encoding/binary"
 	"fmt"
 	"io"
 	"net"
@@ -9,130 +8,94 @@ import (
 	"time"
 )
 
-// Packet represents a framed UDP packet sent over TCP stream
-// Format: [2 bytes Length][Payload...]
-func WritePacket(w io.Writer, payload []byte) error {
-	length := uint16(len(payload))
-	var header [2]byte
-	binary.BigEndian.PutUint16(header[:], length)
-
-	if _, err := w.Write(header[:]); err != nil {
-		return err
-	}
-	_, err := w.Write(payload)
-	return err
-}
-
-func ReadPacket(r io.Reader) ([]byte, error) {
-	var header [2]byte
-	if _, err := io.ReadFull(r, header[:]); err != nil {
-		return nil, err
-	}
-	length := binary.BigEndian.Uint16(header[:])
-	buf := make([]byte, length)
-	if _, err := io.ReadFull(r, buf); err != nil {
-		return nil, err
-	}
-	return buf, nil
-}
-
-// UDPProxy manages listening on a local UDP port and forwarding over stream
-type UDPProxy struct {
-	conn       *net.UDPConn
+type ServerUDPProxy struct {
+	port       int
+	udpConn    *net.UDPConn
 	stream     io.ReadWriteCloser
-	targetAddr *net.UDPAddr
-	mu         sync.Mutex
-	closed     bool
+	clients    map[string]*net.UDPAddr
+	clientsMu  sync.RWMutex
+	closeCtx   chan struct{}
+	closeOnce  sync.Once
 }
 
-func NewServerUDPProxy(listenPort int, stream io.ReadWriteCloser) (*UDPProxy, error) {
-	addr, err := net.ResolveUDPAddr("udp", fmt.Sprintf(":%d", listenPort))
+func NewServerUDPProxy(port int, stream io.ReadWriteCloser) (*ServerUDPProxy, error) {
+	addr, err := net.ResolveUDPAddr("udp", fmt.Sprintf(":%d", port))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to resolve UDP addr: %w", err)
 	}
+
 	conn, err := net.ListenUDP("udp", addr)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to listen UDP on port %d: %w", port, err)
 	}
 
-	return &UDPProxy{
-		conn:   conn,
-		stream: stream,
+	return &ServerUDPProxy{
+		port:     port,
+		udpConn:  conn,
+		stream:   stream,
+		clients:  make(map[string]*net.UDPAddr),
+		closeCtx: make(chan struct{}),
 	}, nil
 }
 
-func (p *UDPProxy) StartServerForwarding() {
-	defer p.conn.Close()
-	defer p.stream.Close()
+func (p *ServerUDPProxy) StartServerForwarding() {
+	defer p.Close()
 
-	// Goroutine 1: Read from UDP public listener and write framed packets to TCP stream
+	// Ingress: Public UDP Clients -> Multiplex Stream
 	go func() {
 		buf := make([]byte, 65535)
 		for {
-			n, srcAddr, err := p.conn.ReadFromUDP(buf)
+			n, srcAddr, err := p.udpConn.ReadFromUDP(buf)
 			if err != nil {
-				return
+				select {
+				case <-p.closeCtx:
+					return
+				default:
+					return
+				}
 			}
-			p.mu.Lock()
-			p.targetAddr = srcAddr
-			p.mu.Unlock()
 
-			if err := WritePacket(p.stream, buf[:n]); err != nil {
+			// Store / Update client address mapping safely
+			p.clientsMu.Lock()
+			p.clients[srcAddr.String()] = srcAddr
+			p.clientsMu.Unlock()
+
+			// Forward payload to multiplex stream
+			_ = p.stream.SetWriteDeadline(time.Now().Add(10 * time.Second))
+			_, err = p.stream.Write(buf[:n])
+			if err != nil {
 				return
 			}
 		}
 	}()
 
-	// Goroutine 2: Read framed packets from TCP stream and respond back to UDP client
+	// Egress: Multiplex Stream -> Public UDP Clients
+	buf := make([]byte, 65535)
 	for {
-		payload, err := ReadPacket(p.stream)
+		_ = p.stream.SetReadDeadline(time.Now().Add(5 * time.Minute))
+		n, err := p.stream.Read(buf)
 		if err != nil {
 			return
 		}
-		p.mu.Lock()
-		target := p.targetAddr
-		p.mu.Unlock()
 
-		if target != nil {
-			_, _ = p.conn.WriteToUDP(payload, target)
+		p.clientsMu.RLock()
+		// Forward returned response to all active mapped clients
+		for _, clientAddr := range p.clients {
+			_, _ = p.udpConn.WriteToUDP(buf[:n], clientAddr)
 		}
+		p.clientsMu.RUnlock()
 	}
 }
 
-func PipeClientUDP(localUDPAddr string, stream io.ReadWriteCloser) error {
-	raddr, err := net.ResolveUDPAddr("udp", localUDPAddr)
-	if err != nil {
-		return err
-	}
-	conn, err := net.DialUDP("udp", nil, raddr)
-	if err != nil {
-		return err
-	}
-	defer conn.Close()
-	defer stream.Close()
-
-	// Goroutine 1: Read from TCP stream and write to local UDP target
-	go func() {
-		for {
-			payload, err := ReadPacket(stream)
-			if err != nil {
-				return
-			}
-			_ = conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
-			_, _ = conn.Write(payload)
+func (p *ServerUDPProxy) Close() error {
+	p.closeOnce.Do(func() {
+		close(p.closeCtx)
+		if p.udpConn != nil {
+			_ = p.udpConn.Close()
 		}
-	}()
-
-	// Read response from local UDP target and frame back to TCP stream
-	buf := make([]byte, 65535)
-	for {
-		_ = conn.SetReadDeadline(time.Now().Add(30 * time.Second))
-		n, err := conn.Read(buf)
-		if err != nil {
-			return err
+		if p.stream != nil {
+			_ = p.stream.Close()
 		}
-		if err := WritePacket(stream, buf[:n]); err != nil {
-			return err
-		}
-	}
+	})
+	return nil
 }
