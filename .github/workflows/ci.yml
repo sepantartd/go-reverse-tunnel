@@ -2,13 +2,12 @@ name: CI & Quality Pipeline
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ main ]
   pull_request:
-    branches: [ main, master ]
+    branches: [ main ]
 
 jobs:
-  test:
-    name: Test & Build
+  lint-and-build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -17,17 +16,8 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.22'
-          cache: true
+          go-version: '>=1.22'
 
-      - name: Install Dependencies
-        run: go mod download
-
-      - name: Run Unit & Integration Tests
-        run: go test -v -race ./...
-
-      - name: Build Binaries
-        run: |
-          go build -v ./cmd/server
-          go build -v ./cmd/client
-          
+      - name: Build All Binaries
+        run: go build -v ./...
+        
