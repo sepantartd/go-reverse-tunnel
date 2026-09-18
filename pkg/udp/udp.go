@@ -2,7 +2,6 @@ package udp
 
 import (
 	"fmt"
-	"io"
 	"log/slog"
 	"net"
 	"sync"
