@@ -4,206 +4,243 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log/slog"
-	"net"
 	"os"
 	"strconv"
 	"strings"
-	"time"
-
-	"github.com/hashicorp/yamux"
 )
 
-type ClientMapping struct {
+// ServerConfig defines the master configuration schema for the reverse tunnel server.
+type ServerConfig struct {
+	ControlAddr       string       `json:"control_addr"`
+	Token             string       `json:"token"`
+	LogLevel          string       `json:"log_level"`
+	DashboardAddr     string       `json:"dashboard_addr"`
+	EnableObfuscation bool         `json:"enable_obfuscation"`
+	DynamicPortMin    int          `json:"dynamic_port_min"`
+	DynamicPortMax    int          `json:"dynamic_port_max"`
+	Clients           []ClientItem `json:"clients"`
+	TLSCertFile       string       `json:"tls_cert_file"`
+	TLSKeyFile        string       `json:"tls_key_file"`
+	AutoTLSDomain     string       `json:"auto_tls_domain"`
+	WebhookURL        string       `json:"webhook_url"`
+}
+
+// ClientItem defines pre-authorized client mappings on the server.
+type ClientItem struct {
 	ClientID string `json:"client_id"`
 	Ports    []int  `json:"ports"`
-	UDPPorts []int  `json:"udp_ports"`
 }
 
-type YamuxConfig struct {
-	KeepaliveIntervalSec int `json:"keepalive_interval_sec"`
-	MaxStreamWindowSize  int `json:"max_stream_window_size"`
-}
-
-type ServerConfig struct {
-	ControlAddr       string          `json:"control_addr"`
-	Token             string          `json:"token"`
-	LogLevel          string          `json:"log_level"`
-	EnableObfuscation bool            `json:"enable_obfuscation"`
-	DashboardAddr     string          `json:"dashboard_addr"`
-	WebhookURL        string          `json:"webhook_url"`
-	TLSCertFile       string          `json:"tls_cert_file"`
-	TLSKeyFile        string          `json:"tls_key_file"`
-	EnableAutoTLS     bool            `json:"enable_auto_tls"`
-	AutoTLSDomain     string          `json:"auto_tls_domain"`
-	AutoTLSCacheDir   string          `json:"auto_tls_cache_dir"`
-	Yamux             YamuxConfig     `json:"yamux"`
-	Clients           []ClientMapping `json:"clients"`
-}
-
-func (s *ServerConfig) Validate() error {
-	if strings.TrimSpace(s.ControlAddr) == "" {
-		return errors.New("server control_addr cannot be empty")
-	}
-	if err := validateAddr(s.ControlAddr); err != nil {
-		return fmt.Errorf("invalid control_addr: %w", err)
-	}
-
-	if strings.TrimSpace(s.Token) == "" {
-		return errors.New("server token cannot be empty")
-	}
-
-	if s.DashboardAddr != "" {
-		if err := validateAddr(s.DashboardAddr); err != nil {
-			return fmt.Errorf("invalid dashboard_addr: %w", err)
-		}
-	}
-
-	if s.EnableAutoTLS && strings.TrimSpace(s.AutoTLSDomain) == "" {
-		return errors.New("auto_tls_domain must be specified when enable_auto_tls is true")
-	}
-
-	for _, client := range s.Clients {
-		if strings.TrimSpace(client.ClientID) == "" {
-			return errors.New("client_id in clients mapping cannot be empty")
-		}
-		for _, port := range client.Ports {
-			if err := validatePort(port); err != nil {
-				return fmt.Errorf("invalid port %d for client %s: %w", port, client.ClientID, err)
-			}
-		}
-		for _, uport := range client.UDPPorts {
-			if err := validatePort(uport); err != nil {
-				return fmt.Errorf("invalid udp_port %d for client %s: %w", uport, client.ClientID, err)
-			}
-		}
-	}
-
-	return nil
-}
-
+// ClientConfig defines the configuration schema for the reverse tunnel client node.
 type ClientConfig struct {
-	ServerAddr             string      `json:"server_addr"`
-	ClientID               string      `json:"client_id"`
-	Token                  string      `json:"token"`
-	LocalAddr              string      `json:"local_addr"`
-	LogLevel               string      `json:"log_level"`
-	EnableObfuscation      bool        `json:"enable_obfuscation"`
-	TLSCertFile            string      `json:"tls_cert_file"`
-	TLSKeyFile             string      `json:"tls_key_file"`
-	TLSCAFile              string      `json:"tls_ca_file"`
-	InsecureSkipVerify     bool        `json:"insecure_skip_verify"`
-	InsecureAllowPlaintext bool        `json:"insecure_allow_plaintext"`
-	Yamux                  YamuxConfig `json:"yamux"`
+	ServerAddr            string `json:"server_addr"`
+	ClientID              string `json:"client_id"`
+	Token                 string `json:"token"`
+	LocalTarget           string `json:"local_target"`
+	EnableObfuscation     bool   `json:"enable_obfuscation"`
+	LogLevel              string `json:"log_level"`
+	TLSCACertFile         string `json:"tls_ca_cert_file"`
+	TLSCertFile           string `json:"tls_cert_file"`
+	TLSKeyFile            string `json:"tls_key_file"`
+	TLSInsecureSkipVerify bool   `json:"tls_insecure_skip_verify"`
 }
 
-func (c *ClientConfig) Validate() error {
-	if strings.TrimSpace(c.ServerAddr) == "" {
-		return errors.New("client server_addr cannot be empty")
-	}
-	if err := validateAddr(c.ServerAddr); err != nil {
-		return fmt.Errorf("invalid server_addr: %w", err)
+// LoadServerConfig reads, parses, validates and applies environment overrides for server configuration.
+func LoadServerConfig(filepath string) (*ServerConfig, error) {
+	if _, err := os.Stat(filepath); os.IsNotExist(err) {
+		return nil, fmt.Errorf("server configuration file not found at path: %s", filepath)
 	}
 
-	if strings.TrimSpace(c.ClientID) == "" {
-		return errors.New("client client_id cannot be empty")
+	file, err := os.Open(filepath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open server config file: %w", err)
+	}
+	defer file.Close()
+
+	cfg := &ServerConfig{}
+	decoder := json.NewDecoder(file)
+	if err := decoder.Decode(cfg); err != nil {
+		return nil, fmt.Errorf("failed to parse server JSON configuration: %w", err)
 	}
 
-	if strings.TrimSpace(c.Token) == "" {
-		return errors.New("client token cannot be empty")
+	SetServerDefaults(cfg)
+	ApplyServerEnvOverrides(cfg)
+
+	if err := ValidateServerConfig(cfg); err != nil {
+		return nil, fmt.Errorf("server configuration validation failed: %w", err)
 	}
 
-	if strings.TrimSpace(c.LocalAddr) == "" {
-		return errors.New("client local_addr cannot be empty")
+	return cfg, nil
+}
+
+// SaveServerConfig serializes and writes the server configuration to a JSON file.
+func SaveServerConfig(filepath string, cfg *ServerConfig) error {
+	file, err := os.Create(filepath)
+	if err != nil {
+		return fmt.Errorf("failed to create server config file: %w", err)
+	}
+	defer file.Close()
+
+	encoder := json.NewEncoder(file)
+	encoder.SetIndent("", "  ")
+	if err := encoder.Encode(cfg); err != nil {
+		return fmt.Errorf("failed to encode server configuration: %w", err)
 	}
 
 	return nil
 }
 
-func validateAddr(addr string) error {
-	_, portStr, err := net.SplitHostPort(addr)
-	if err != nil {
-		return err
+// LoadClientConfig reads, parses, validates and applies environment overrides for client configuration.
+func LoadClientConfig(filepath string) (*ClientConfig, error) {
+	if _, err := os.Stat(filepath); os.IsNotExist(err) {
+		return nil, fmt.Errorf("client configuration file not found at path: %s", filepath)
 	}
-	port, err := strconv.Atoi(portStr)
+
+	file, err := os.Open(filepath)
 	if err != nil {
-		return fmt.Errorf("invalid port format: %w", err)
+		return nil, fmt.Errorf("failed to open client config file: %w", err)
 	}
-	return validatePort(port)
+	defer file.Close()
+
+	cfg := &ClientConfig{}
+	decoder := json.NewDecoder(file)
+	if err := decoder.Decode(cfg); err != nil {
+		return nil, fmt.Errorf("failed to parse client JSON configuration: %w", err)
+	}
+
+	SetClientDefaults(cfg)
+	ApplyClientEnvOverrides(cfg)
+
+	if err := ValidateClientConfig(cfg); err != nil {
+		return nil, fmt.Errorf("client configuration validation failed: %w", err)
+	}
+
+	return cfg, nil
 }
 
-func validatePort(port int) error {
-	if port < 1 || port > 65535 {
-		return fmt.Errorf("port must be between 1 and 65535, got %d", port)
+// SaveClientConfig serializes and writes the client configuration to a JSON file.
+func SaveClientConfig(filepath string, cfg *ClientConfig) error {
+	file, err := os.Create(filepath)
+	if err != nil {
+		return fmt.Errorf("failed to create client config file: %w", err)
+	}
+	defer file.Close()
+
+	encoder := json.NewEncoder(file)
+	encoder.SetIndent("", "  ")
+	if err := encoder.Encode(cfg); err != nil {
+		return fmt.Errorf("failed to encode client configuration: %w", err)
+	}
+
+	return nil
+}
+
+// SetServerDefaults populates empty fields in ServerConfig with sensible fallback values.
+func SetServerDefaults(cfg *ServerConfig) {
+	if cfg.ControlAddr == "" {
+		cfg.ControlAddr = ":7000"
+	}
+	if cfg.LogLevel == "" {
+		cfg.LogLevel = "info"
+	}
+	if cfg.DynamicPortMin <= 0 {
+		cfg.DynamicPortMin = 40000
+	}
+	if cfg.DynamicPortMax <= 0 {
+		cfg.DynamicPortMax = 50000
+	}
+}
+
+// SetClientDefaults populates empty fields in ClientConfig with sensible fallback values.
+func SetClientDefaults(cfg *ClientConfig) {
+	if cfg.ServerAddr == "" {
+		cfg.ServerAddr = "127.0.0.1:7000"
+	}
+	if cfg.LocalTarget == "" {
+		cfg.LocalTarget = "127.0.0.1:8080"
+	}
+	if cfg.LogLevel == "" {
+		cfg.LogLevel = "info"
+	}
+}
+
+// ValidateServerConfig checks server configuration parameters for logical and security errors.
+func ValidateServerConfig(cfg *ServerConfig) error {
+	if cfg.Token == "" {
+		return errors.New("security token cannot be empty in server configuration")
+	}
+	if cfg.ControlAddr == "" {
+		return errors.New("control address is required")
+	}
+	if cfg.DynamicPortMin > cfg.DynamicPortMax {
+		return errors.New("dynamic_port_min cannot be greater than dynamic_port_max")
 	}
 	return nil
 }
 
-func LoadServerConfig(path string) (*ServerConfig, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read config file: %w", err)
+// ValidateClientConfig checks client configuration parameters for consistency.
+func ValidateClientConfig(cfg *ClientConfig) error {
+	if cfg.ClientID == "" {
+		return errors.New("client_id cannot be empty")
 	}
-
-	var cfg ServerConfig
-	if err := json.Unmarshal(data, &cfg); err != nil {
-		return nil, fmt.Errorf("failed to parse config JSON: %w", err)
+	if cfg.Token == "" {
+		return errors.New("authentication token cannot be empty")
 	}
-
-	if err := cfg.Validate(); err != nil {
-		return nil, fmt.Errorf("server configuration validation error: %w", err)
+	if cfg.ServerAddr == "" {
+		return errors.New("server address destination is required")
 	}
-
-	return &cfg, nil
+	return nil
 }
 
-func LoadClientConfig(path string) (*ClientConfig, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read config file: %w", err)
+// ApplyServerEnvOverrides checks and overrides server settings using environment variables if present.
+func ApplyServerEnvOverrides(cfg *ServerConfig) {
+	if val := os.Getenv("TUNNEL_SERVER_ADDR"); val != "" {
+		cfg.ControlAddr = val
 	}
-
-	var cfg ClientConfig
-	if err := json.Unmarshal(data, &cfg); err != nil {
-		return nil, fmt.Errorf("failed to parse config JSON: %w", err)
+	if val := os.Getenv("TUNNEL_TOKEN"); val != "" {
+		cfg.Token = val
 	}
-
-	if err := cfg.Validate(); err != nil {
-		return nil, fmt.Errorf("client configuration validation error: %w", err)
+	if val := os.Getenv("TUNNEL_DASHBOARD_ADDR"); val != "" {
+		cfg.DashboardAddr = val
 	}
-
-	return &cfg, nil
+	if val := os.Getenv("TUNNEL_OBFUSCATION"); val != "" {
+		if parsed, err := strconv.ParseBool(val); err == nil {
+			cfg.EnableObfuscation = parsed
+		}
+	}
+	if val := os.Getenv("TUNNEL_WEBHOOK_URL"); val != "" {
+		cfg.WebhookURL = val
+	}
 }
 
-func GetYamuxConfig(cfg YamuxConfig) *yamux.Config {
-	yCfg := yamux.DefaultConfig()
-
-	if cfg.KeepaliveIntervalSec > 0 {
-		yCfg.EnableKeepAlive = true
-		yCfg.KeepAliveInterval = time.Duration(cfg.KeepaliveIntervalSec) * time.Second
+// ApplyClientEnvOverrides checks and overrides client settings using environment variables if present.
+func ApplyClientEnvOverrides(cfg *ClientConfig) {
+	if val := os.Getenv("TUNNEL_SERVER_TARGET"); val != "" {
+		cfg.ServerAddr = val
 	}
-
-	if cfg.MaxStreamWindowSize > 0 {
-		yCfg.MaxStreamWindowSize = uint32(cfg.MaxStreamWindowSize)
+	if val := os.Getenv("TUNNEL_CLIENT_ID"); val != "" {
+		cfg.ClientID = val
 	}
-
-	return yCfg
+	if val := os.Getenv("TUNNEL_TOKEN"); val != "" {
+		cfg.Token = val
+	}
+	if val := os.Getenv("TUNNEL_LOCAL_TARGET"); val != "" {
+		cfg.LocalTarget = val
+	}
+	if val := os.Getenv("TUNNEL_OBFUSCATION"); val != "" {
+		if parsed, err := strconv.ParseBool(val); err == nil {
+			cfg.EnableObfuscation = parsed
+		}
+	}
 }
 
-func SetupLogger(levelStr string) *slog.Logger {
-	var level slog.Level
-	switch strings.ToLower(levelStr) {
-	case "debug":
-		level = slog.LevelDebug
-	case "warn", "warning":
-		level = slog.LevelWarn
-	case "error":
-		level = slog.LevelError
-	default:
-		level = slog.LevelInfo
-	}
-
-	opts := &slog.HandlerOptions{Level: level}
-	handler := slog.NewTextHandler(os.Stdout, opts)
-	return slog.New(handler)
+// SummaryString returns a clean string overview of the server settings.
+func (cfg *ServerConfig) SummaryString() string {
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("ControlAddr: %s\n", cfg.ControlAddr))
+	sb.WriteString(fmt.Sprintf("DashboardAddr: %s\n", cfg.DashboardAddr))
+	sb.WriteString(fmt.Sprintf("Obfuscation: %t\n", cfg.EnableObfuscation))
+	sb.WriteString(fmt.Sprintf("Dynamic Ports Range: %d-%d\n", cfg.DynamicPortMin, cfg.DynamicPortMax))
+	sb.WriteString(fmt.Sprintf("Registered Clients Count: %d\n", len(cfg.Clients)))
+	return sb.String()
 }
