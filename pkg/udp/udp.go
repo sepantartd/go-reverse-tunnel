@@ -3,99 +3,159 @@ package udp
 import (
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"sync"
 	"time"
 )
 
-type ServerUDPProxy struct {
-	port       int
-	udpConn    *net.UDPConn
-	stream     io.ReadWriteCloser
-	clients    map[string]*net.UDPAddr
-	clientsMu  sync.RWMutex
-	closeCtx   chan struct{}
-	closeOnce  sync.Once
+var bufferPool = sync.Pool{
+	New: func() interface{} {
+		b := make([]byte, 32*1024)
+		return &b
+	},
 }
 
-func NewServerUDPProxy(port int, stream io.ReadWriteCloser) (*ServerUDPProxy, error) {
-	addr, err := net.ResolveUDPAddr("udp", fmt.Sprintf(":%d", port))
-	if err != nil {
-		return nil, fmt.Errorf("failed to resolve UDP addr: %w", err)
-	}
+type ServerUDPProxy struct {
+	port   int
+	stream net.Conn
+	logger *slog.Logger
+}
 
-	conn, err := net.ListenUDP("udp", addr)
-	if err != nil {
-		return nil, fmt.Errorf("failed to listen UDP on port %d: %w", port, err)
-	}
-
+func NewServerUDPProxy(port int, stream net.Conn) (*ServerUDPProxy, error) {
 	return &ServerUDPProxy{
-		port:     port,
-		udpConn:  conn,
-		stream:   stream,
-		clients:  make(map[string]*net.UDPAddr),
-		closeCtx: make(chan struct{}),
+		port:   port,
+		stream: stream,
+		logger: slog.Default(),
 	}, nil
 }
 
 func (p *ServerUDPProxy) StartServerForwarding() {
-	defer p.Close()
+	defer p.stream.Close()
 
-	// Ingress: Public UDP Clients -> Multiplex Stream
+	udpAddr, err := net.ResolveUDPAddr("udp", fmt.Sprintf(":%d", p.port))
+	if err != nil {
+		p.logger.Error("Failed to resolve UDP address", slog.Int("port", p.port), slog.String("error", err.Error()))
+		return
+	}
+
+	udpConn, err := net.ListenUDP("udp", udpAddr)
+	if err != nil {
+		p.logger.Error("Failed to listen on UDP port", slog.Int("port", p.port), slog.String("error", err.Error()))
+		return
+	}
+	defer udpConn.Close()
+
+	idleTimeout := 5 * time.Minute
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+
 	go func() {
-		buf := make([]byte, 65535)
+		defer wg.Done()
+		bufPtr := bufferPool.Get().(*[]byte)
+		defer bufferPool.Put(bufPtr)
+
 		for {
-			n, srcAddr, err := p.udpConn.ReadFromUDP(buf)
+			_ = p.stream.SetReadDeadline(time.Now().Add(idleTimeout))
+			n, err := p.stream.Read(*bufPtr)
 			if err != nil {
-				select {
-				case <-p.closeCtx:
-					return
-				default:
-					return
-				}
+				break
 			}
+			_, _ = udpConn.Write((*bufPtr)[:n])
+		}
+	}()
 
-			// Store / Update client address mapping safely
-			p.clientsMu.Lock()
-			p.clients[srcAddr.String()] = srcAddr
-			p.clientsMu.Unlock()
+	go func() {
+		defer wg.Done()
+		bufPtr := bufferPool.Get().(*[]byte)
+		defer bufferPool.Put(bufPtr)
 
-			// Forward payload to multiplex stream
-			_ = p.stream.SetWriteDeadline(time.Now().Add(10 * time.Second))
-			_, err = p.stream.Write(buf[:n])
+		for {
+			_ = udpConn.SetReadDeadline(time.Now().Add(idleTimeout))
+			n, _, err := udpConn.ReadFromUDP(*bufPtr)
 			if err != nil {
-				return
+				break
+			}
+			_ = p.stream.SetWriteDeadline(time.Now().Add(idleTimeout))
+			_, err = p.stream.Write((*bufPtr)[:n])
+			if err != nil {
+				break
 			}
 		}
 	}()
 
-	// Egress: Multiplex Stream -> Public UDP Clients
-	buf := make([]byte, 65535)
-	for {
-		_ = p.stream.SetReadDeadline(time.Now().Add(5 * time.Minute))
-		n, err := p.stream.Read(buf)
-		if err != nil {
-			return
-		}
-
-		p.clientsMu.RLock()
-		// Forward returned response to all active mapped clients
-		for _, clientAddr := range p.clients {
-			_, _ = p.udpConn.WriteToUDP(buf[:n], clientAddr)
-		}
-		p.clientsMu.RUnlock()
-	}
+	wg.Wait()
 }
 
-func (p *ServerUDPProxy) Close() error {
-	p.closeOnce.Do(func() {
-		close(p.closeCtx)
-		if p.udpConn != nil {
-			_ = p.udpConn.Close()
+type ClientUDPProxy struct {
+	target string
+	stream net.Conn
+	logger *slog.Logger
+}
+
+func NewClientUDPProxy(target string, stream net.Conn) (*ClientUDPProxy, error) {
+	return &ClientUDPProxy{
+		target: target,
+		stream: stream,
+		logger: slog.Default(),
+	}, nil
+}
+
+func (p *ClientUDPProxy) StartClientForwarding() {
+	defer p.stream.Close()
+
+	udpAddr, err := net.ResolveUDPAddr("udp", p.target)
+	if err != nil {
+		p.logger.Error("Failed to resolve target UDP address", slog.String("target", p.target), slog.String("error", err.Error()))
+		return
+	}
+
+	udpConn, err := net.DialUDP("udp", nil, udpAddr)
+	if err != nil {
+		p.logger.Error("Failed to dial target UDP", slog.String("target", p.target), slog.String("error", err.Error()))
+		return
+	}
+	defer udpConn.Close()
+
+	idleTimeout := 5 * time.Minute
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	go func() {
+		defer wg.Done()
+		bufPtr := bufferPool.Get().(*[]byte)
+		defer bufferPool.Put(bufPtr)
+
+		for {
+			_ = p.stream.SetReadDeadline(time.Now().Add(idleTimeout))
+			n, err := p.stream.Read(*bufPtr)
+			if err != nil {
+				break
+			}
+			_, _ = udpConn.Write((*bufPtr)[:n])
 		}
-		if p.stream != nil {
-			_ = p.stream.Close()
+	}()
+
+	go func() {
+		defer wg.Done()
+		bufPtr := bufferPool.Get().(*[]byte)
+		defer bufferPool.Put(bufPtr)
+
+		for {
+			_ = udpConn.SetReadDeadline(time.Now().Add(idleTimeout))
+			n, err := udpConn.Read(*bufPtr)
+			if err != nil {
+				break
+			}
+			_ = p.stream.SetWriteDeadline(time.Now().Add(idleTimeout))
+			_, err = p.stream.Write((*bufPtr)[:n])
+			if err != nil {
+				break
+			}
 		}
-	})
-	return nil
+	}()
+
+	wg.Wait()
 }
