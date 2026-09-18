@@ -1,0 +1,37 @@
+name: Manual Build
+
+on:
+  workflow_dispatch: # اجازه اجرای دستی با یک کلیک در سایت گیت‌هاب
+
+jobs:
+  build:
+    name: Build on ${{ matrix.os }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [linux, windows]
+        arch: [amd64]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Build binary
+        run: |
+          if [ "${{ matrix.os }}" = "windows" ]; then
+            GOOS=${{ matrix.os }} GOARCH=${{ matrix.arch }} go build -o app-${{ matrix.os }}-${{ matrix.arch }}.exe .
+          else
+            GOOS=${{ matrix.os }} GOARCH=${{ matrix.arch }} go build -o app-${{ matrix.os }}-${{ matrix.arch }} .
+          fi
+
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: compiled-app-${{ matrix.os }}
+          path: app-*
+          
