@@ -1,124 +1,93 @@
-# Go Reverse Tunnel
+# تانل معکوس با گو (Go Reverse Tunnel)
 
-یک ابزار Reverse Tunneling قدرتمند، امن و سبک که به زبان Go نوشته شده است. این پروژه به شما اجازه می‌دهد سرویس‌های محلی (پشت NAT یا فایروال) را به سادگی و با امنیت بالا به اینترنت عمومی متصل کنید.
+یک ابزار **ریورس تانلینگ (Reverse Tunneling)** فوق‌العاده سریع، امن و سبک که به زبان Go پیاده‌سازی شده است. این ابزار به شما اجازه می‌دهد سرویس‌های محلی (Local) خود را که پشت NAT یا فایروال قرار دارند، از طریق یک سرور با IP عمومی به اینترنت معرفی و دسترس‌پذیر کنید.
 
-## ویژگی‌ها
+---
 
-- **امنیت در برابر Replay Attack:** بهره‌گیری از Challenge Nonce تصادفی ۳۲ بایتی یک‌بارمصرف برای هر نشست.
-- **احراز هویت HMAC-SHA256:** اعتبارسنجی دقیق Token به همراه نگاشت سفارشی ClientID.
-- **محدودسازی نرخ تلاش‌ها (Rate Limiting):** جلوگیری از حملات Brute-Force و ایجاد ترافیک نامتعارف بر روی سرور.
-- **پشتیبانی از Auto-TLS (Let's Encrypt):** دریافت و تمدید خودکار گواهی TLS/HTTPS بدون نیاز به ابزار خارجی.
-- **مخفی‌سازی ترافیک (Traffic Shape Obfuscation):** تبادل بایت‌های پوششی تصادفی (Junk Padding) در هاندشیک اولیه جهت عبور از سیستم‌های بازرسی عمیق بسته (DPI).
-- **مالتی‌پلی‌کسینگ:** استفاده از کتابخانه Yamux جهت انتقال چند جریان داده روی یک اتصال TCP.
-- **پشتیبانی از UDP Forwarding:** امکان تونل‌سازی ترافیک UDP در کنار TCP.
-- **داشبورد وب و مانیتورینگ:** نمایش زنده وضعیت کلاینت‌ها با احراز هویت توکن، Uptime و ارائه Endpoint استاندارد Prometheus برای متریک‌ها.
-- **وب‌هوک:** ارسال گزارش رویدادهای اتصال، قطع اتصال و خطاهای امنیتی.
+## 🌟 ویژگی‌های کلیدی
 
-## نصب و ساخت (Build)
+- **تخصیص پورت پویا (Dynamic Port Allocation):** مانند ngrok، در صورت تنظیم پورت روی `0` سرور به‌صورت خودکار یک پورت آزاد رزرو کرده و به کلاینت اختصاص می‌دهد.
+- **مالتی‌پلی‌کسینگ قدرتمند با Yamux:** مدیریت هزاران اتصال همزمان تنها روی یک کانال TCP/TLS.
+- **مخفی‌سازی ترافیک (Obfuscation):** مبهم‌سازی ترافیک TCP خام قبل از TLS جهت عبور از سیستم‌های بازرسی عمیق بسته‌ها (DPI).
+- **امنیت بالا با HMAC-SHA256:** احرازهویت کلاینت‌ها با Nonce تصادفی و رمزنگاری HMAC بدون ارسال توکن اصلی در شبکه.
+- **پشتیبانی از TLS و Auto-TLS (Let's Encrypt):** دریافت و تمدید خودکار گواهی TLS مجانی بدون نیاز به ابزار جانبی.
+- **پشتیبانی از UDP Forwarding:** امکان تانل کردن بسته‌های UDP برای بازی‌های آنلاین، DNS و سایر پروتکل‌های مبتنی بر UDP.
+- **محدودکننده نرخ اتصال (Rate Limiting):** جلوگیری از حملات Brute-force و DoS با کنترل تعداد درخواست‌ها بر اساس IP.
+- **داشبورد و مانیتورینگ:** ارائه متریک‌های Prometheus و اندپوینت‌های pprof (محافظت‌شده با توکن) جهت عیب‌یابی و پایش عملکرد.
+- **وب‌هوک (Webhook Notification):** اطلاع‌رسانی اتصالات، قطع اتصال‌ها و خطاهای امنیتی.
 
-### پیش‌نیازها
-- نسخه Go 1.22 یا بالاتر
+---
 
-### ساخت فایل‌های اجرایی
+## 🚀 نصب سریع
+
+### اسکریپت نصب تک‌خطی (لینوکس و Termux)
+
+برای نصب آخرین نسخه آماده از [GitHub Releases](https://github.com/sepantartd/go-reverse-tunnel/releases):
+
 ```bash
-# کلون کردن ریپازیتوری
-git clone [https://github.com/sepantartd/go-reverse-tunnel.git](https://github.com/sepantartd/go-reverse-tunnel.git)
-cd go-reverse-tunnel
-
-# ساخت سرور و کلاینت
-go build -o bin/server cmd/server/main.go
-go build -o bin/client cmd/client/main.go
+bash <(curl -sL [https://raw.githubusercontent.com/sepantartd/go-reverse-tunnel/main/scripts/install.sh](https://raw.githubusercontent.com/sepantartd/go-reverse-tunnel/main/scripts/install.sh))
 ```
 
-## ساخت برای ویندوز و Termux (اندروید)
+---
 
-### ساخت برای ویندوز (PowerShell)
-```powershell
-$env:GOOS="windows"
-$env:GOARCH="amd64"
-go build -o bin/server.exe cmd/server/main.go
-go build -o bin/client.exe cmd/client/main.go
-```
+## 🛠️ نحوه استفاده
 
-### اجرای اسکریپت ساخت چندپلتفرمی
-می‌توانید از اسکریپت‌های آماده پروژه استفاده کنید:
-- **لینوکس / مک / ترموکس:** `bash build.sh`
-- **ویندوز:** `powershell .\build.ps1`
+### ۱. اجرای سرور (Server)
 
-## راهنمای اجرا روی Termux (اندروید)
+فایل کانفیگ سرور `server.json`:
 
-برای اجرای کلاینت روی گوشی‌های اندرویدی از طریق Termux:
-
-1. برنامه Termux را باز کرده و بسته‌های مورد نیاز را نصب کنید:
-   ```bash
-   pkg update && pkg install golang git
-   ```
-2. پروژه را کلون کرده و فایل کلاینت را بسازید:
-   ```bash
-   git clone [https://github.com/sepantartd/go-reverse-tunnel.git](https://github.com/sepantartd/go-reverse-tunnel.git)
-   cd go-reverse-tunnel
-   go build -o client cmd/client/main.go
-   ```
-3. فایل کانفیگ `client_config.json` را تنظیم کرده و اجرا کنید:
-   ```bash
-   ./client -config client_config.json
-   ```
-
-## پیکربندی (Configuration)
-
-### تنظیمات سرور (`server_config.json`)
 ```json
 {
-  "control_addr": ":9090",
-  "token": "your-secret-token",
+  "control_addr": ":8080",
+  "token": "my-super-secret-token",
   "log_level": "info",
+  "dashboard_addr": ":9090",
   "enable_obfuscation": true,
-  "dashboard_addr": ":8080",
-  "yamux": {
-    "keepalive_interval_sec": 15,
-    "max_stream_window_size": 524288
-  },
+  "dynamic_port_min": 40000,
+  "dynamic_port_max": 50000,
   "clients": [
     {
-      "client_id": "app-server-1",
-      "ports": [8080, 9000],
-      "udp_ports": [5000]
+      "client_id": "app-1",
+      "ports": [0, 8081]
     }
   ]
 }
 ```
 
-### تنظیمات کلاینت (`client_config.json`)
+دستور اجرا:
+
+```bash
+go-reverse-tunnel -config server.json
+```
+
+### ۲. اجرای کلاینت (Client)
+
+فایل کانفیگ کلاینت `client.json`:
+
 ```json
 {
-  "server_addr": "your-server.com:9090",
-  "client_id": "app-server-1",
-  "token": "your-secret-token",
-  "local_addr": "127.0.0.1:80",
-  "log_level": "info",
+  "server_addr": "SERVER_IP:8080",
+  "client_id": "app-1",
+  "token": "my-super-secret-token",
+  "local_target": "127.0.0.1:3000",
   "enable_obfuscation": true,
-  "yamux": {
-    "keepalive_interval_sec": 15,
-    "max_stream_window_size": 524288
-  }
+  "log_level": "info"
 }
 ```
 
-## تنظیمات پیشرفته
+دستور اجرا:
 
-برای شبکه‌های با تاخیر بالا (High Latency) یا اتصالات دارای اختلال، می‌توانید پارامترهای ترافیکی Yamux و آدرس داشبورد را در فایل‌های کانفیگ تنظیم کنید:
+```bash
+go-reverse-tunnel -config client.json
+```
 
-### پارامترهای Yamux
-- `keepalive_interval_sec`: فاصله زمانی ارسال سیگنال Ping برای زنده نگه‌داشتن اتصال (پیش‌فرض: ۳۰ ثانیه).
-- `max_stream_window_size`: حداکثر حجم پنجره ارسال ترافیک روی هر استریم به بایت (پیش‌فرض: ۲۵۶ کیلوبایت).
+---
 
-### داشبورد و متریک‌ها
-- `dashboard_addr`: تعیین آدرس و پورت اجرای داشبورد وب و ارائه مسیر `/metrics` برای جمع‌آوری داده‌ها توسط Prometheus (مانند `:8080`). دسترسی به داشبورد نیازمند پارامتر `?token=YOUR_TOKEN` است.
+## 📊 داشبورد و پروفایلینگ (pprof)
 
-### تست و فعال‌سازی Obfuscation
-برای عبور از سیستم‌های بازرسی عمیق بسته (DPI):
-1. مقدار `"enable_obfuscation": true` را در هر دو فایل تنظیمات سرور و کلاینت قرار دهید.
-2. هاندشیک اولیه با پدینگ داده‌های تصادفی (Random Junk Padding) تغییر شکل یافته و پیش از برقراری نشست اصلی تبادل خواهد شد.
+اگر `dashboard_addr` فعال باشد، اندپوینت‌های زیر از طریق `token` قابل دسترسی خواهند بود:
 
-## مجوز (License)
-این پروژه تحت مجوز MIT منتشر شده است.
+- **داشبورد وضعیت:** `http://SERVER_IP:9090/dashboard?token=my-super-secret-token`
+- **متریک‌های Prometheus:** `http://SERVER_IP:9090/metrics?token=my-super-secret-token`
+- **پروفایلر pprof:** `http://SERVER_IP:9090/debug/pprof/?token=my-super-secret-token`
+- 
