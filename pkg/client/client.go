@@ -44,15 +44,34 @@ func RunClient(ctx context.Context, cfg *config.ClientConfig) error {
 }
 
 func connectAndServe(ctx context.Context, cfg *config.ClientConfig, logger *slog.Logger) error {
-	var conn net.Conn
-	var err error
-
 	dialer := &net.Dialer{
 		Timeout: 10 * time.Second,
 	}
 
+	// Layer 1: Establish Raw TCP Connection
+	conn, err := dialer.DialContext(ctx, "tcp", cfg.ServerAddr)
+	if err != nil {
+		return fmt.Errorf("failed to connect to server: %v", err)
+	}
+	defer conn.Close()
+
+	// Layer 2: Obfuscation Handshake over Raw TCP
+	if cfg.EnableObfuscation {
+		conn, err = obfuscate.PerformClientHandshake(conn)
+		if err != nil {
+			return fmt.Errorf("obfuscation handshake failed: %v", err)
+		}
+	}
+
+	// Layer 3: Upgrade to TLS over the obfuscated TCP stream if configured
 	if cfg.TLSCertFile != "" || !cfg.InsecureAllowPlaintext {
+		host, _, splitErr := net.SplitHostPort(cfg.ServerAddr)
+		if splitErr != nil {
+			host = cfg.ServerAddr
+		}
+
 		tlsCfg := &tls.Config{
+			ServerName:         host,
 			InsecureSkipVerify: cfg.InsecureSkipVerify,
 			MinVersion:         tls.VersionTLS12,
 		}
@@ -75,23 +94,14 @@ func connectAndServe(ctx context.Context, cfg *config.ClientConfig, logger *slog
 			tlsCfg.Certificates = []tls.Certificate{cert}
 		}
 
-		conn, err = tls.DialWithDialer(dialer, "tcp", cfg.ServerAddr, tlsCfg)
-	} else {
-		conn, err = dialer.DialContext(ctx, "tcp", cfg.ServerAddr)
-	}
-
-	if err != nil {
-		return fmt.Errorf("failed to connect to server: %v", err)
-	}
-	defer conn.Close()
-
-	if cfg.EnableObfuscation {
-		conn, err = obfuscate.PerformClientHandshake(conn)
-		if err != nil {
-			return fmt.Errorf("obfuscation handshake failed: %v", err)
+		tlsConn := tls.Client(conn, tlsCfg)
+		if err := tlsConn.Handshake(); err != nil {
+			return fmt.Errorf("TLS handshake failed: %v", err)
 		}
+		conn = tlsConn
 	}
 
+	// Authentication
 	_ = conn.SetReadDeadline(time.Now().Add(10 * time.Second))
 	nonce := make([]byte, 32)
 	if _, err := io.ReadFull(conn, nonce); err != nil {
@@ -110,6 +120,7 @@ func connectAndServe(ctx context.Context, cfg *config.ClientConfig, logger *slog
 
 	_ = conn.SetDeadline(time.Time{})
 
+	// Layer 4: Yamux Session
 	yamuxCfg := config.GetYamuxConfig(cfg.Yamux)
 	session, err := yamux.Client(conn, yamuxCfg)
 	if err != nil {
