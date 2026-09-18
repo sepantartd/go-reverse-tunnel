@@ -1,6 +1,6 @@
 # Go Reverse Tunnel
 
-A high-performance, secure, and lightweight reverse tunneling solution written in Go. Easily expose local services behind NAT or firewalls to the public internet with built-in TLS, Let's Encrypt (Auto-TLS), Traffic Obfuscation, UDP Forwarding, Rate Limiting, and a Web Dashboard.
+A high-performance, secure, and lightweight reverse tunneling solution written in Go. Easily expose local services behind NAT or firewalls to the public internet with built-in TLS, Let's Encrypt (Auto-TLS), Traffic Obfuscation, UDP Forwarding, Rate Limiting, and an Authenticated Web Dashboard.
 
 ## Features
 
@@ -8,10 +8,10 @@ A high-performance, secure, and lightweight reverse tunneling solution written i
 - **HMAC-SHA256 Authentication:** Secure token validation with custom ClientID mapping.
 - **Rate Limiting:** Built-in connection rate limiting per IP to prevent brute-force attacks.
 - **Auto-TLS (Let's Encrypt):** Native support for automatic HTTPS/TLS certificate management.
-- **Traffic Obfuscation:** XOR-based handshake masking to bypass strict DPI inspection systems.
+- **Traffic Shape Obfuscation:** Random junk padding handshake exchange to alter connection signatures against DPI systems.
 - **Multiplexing:** Powered by Yamux for high-throughput stream multiplexing over a single TCP connection.
 - **UDP Forwarding:** Tunnel UDP traffic alongside standard TCP streams.
-- **Web Dashboard & Metrics:** Real-time client session monitoring and Prometheus `/metrics` endpoint.
+- **Web Dashboard & Metrics:** Real-time client session monitoring protected with token auth and Prometheus `/metrics` endpoint.
 - **Webhook Notifications:** Instant alerts for connection events and security failures.
 
 ## Installation & Building
@@ -113,12 +113,12 @@ For high-latency networks or unstable connections, you can fine-tune the interna
 - `max_stream_window_size`: Stream window size in bytes for high-throughput link tuning (default: 256KB).
 
 ### Dashboard and Metrics
-- `dashboard_addr`: Specifies the binding address for the web dashboard and Prometheus `/metrics` endpoint (e.g., `:8080`).
+- `dashboard_addr`: Specifies the binding address for the web dashboard and Prometheus `/metrics` endpoint (e.g., `:8080`). Requires `?token=YOUR_TOKEN` query parameter for authorization.
 
 ### Traffic Obfuscation Testing
 To mask tunnel control traffic against Deep Packet Inspection (DPI):
 1. Set `"enable_obfuscation": true` in both `server_config.json` and `client_config.json`.
-2. The initial control handshake will perform a seed mask exchange before initiating the TLS/Yamux session.
+2. The control connection uses random junk padding bytes to obfuscate initial signatures before initiating the TLS/Yamux session.
 
 ## License
 MIT License.
