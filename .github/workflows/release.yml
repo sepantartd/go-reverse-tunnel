@@ -3,10 +3,10 @@ name: Release
 on:
   push:
     tags:
-      - 'v*'   # فقط وقتی تگ با v شروع بشه (مثل v1.2.0)
+      - 'v*'
 
 permissions:
-  contents: write   # لازم برای ساخت ریلیز و آپلود فایل‌ها
+  contents: write
 
 jobs:
   goreleaser:
@@ -15,18 +15,18 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0   # برای changelog و تاریخچه کامل لازمه
+          fetch-depth: 0
 
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.22'   # مطابق با go.mod فعلی پروژه‌ات
+          go-version: '1.22'
 
       - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@v6
+        uses: goreleaser/goreleaser-action@v6   # یا بهتره v7 بذاری
         with:
           distribution: goreleaser
-          version: '\~> v2'
+          version: latest          # ← این خط رو عوض کن
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
