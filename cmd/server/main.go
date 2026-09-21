@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
@@ -21,10 +22,10 @@ func main() {
 		log.Fatalf("Failed to load server config: %v", err)
 	}
 
-	logger := config.SetupLogger(cfg.LogLevel)
+	logger := slog.Default()
 	logger.Info("Starting Go Reverse Tunnel Server...")
 
-	srv := server.NewTunnelServer(cfg)
+	srv := server.NewServer(cfg)
 
 	go func() {
 		if err := srv.Start(); err != nil {
@@ -38,6 +39,5 @@ func main() {
 	<-sigChan
 
 	logger.Info("Shutting down server gracefully...")
-	_ = srv.Close()
 	fmt.Println("Server stopped.")
 }
