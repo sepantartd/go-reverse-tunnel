@@ -1,10 +1,9 @@
 package main
 
 import (
-	"context"
-	"encoding/json"
 	"flag"
 	"log"
+	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
@@ -14,30 +13,30 @@ import (
 )
 
 func main() {
-	configPath := flag.String("config", "configs/client.json", "Path to client configuration file")
+	configPath := flag.String("config", "client_config.json", "Path to client configuration file")
 	flag.Parse()
 
-	file, err := os.ReadFile(*configPath)
+	cfg, err := config.LoadClientConfig(*configPath)
 	if err != nil {
-		log.Fatalf("[Client] Failed to read config file: %v", err)
+		log.Fatalf("[Client] Failed to load config: %v", err)
 	}
 
-	var cfg config.ClientConfig
-	if err := json.Unmarshal(file, &cfg); err != nil {
-		log.Fatalf("[Client] Failed to parse config JSON: %v", err)
-	}
+	logger := slog.Default()
+	logger.Info("Starting Go Reverse Tunnel Client...")
 
-	if err := cfg.Validate(); err != nil {
-		log.Fatalf("[Client] Configuration validation failed: %v", err)
-	}
+	c := client.NewClient(cfg)
 
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
+	go func() {
+		if err := c.Start(); err != nil {
+			logger.Error("Client stopped with error", "error", err)
+			os.Exit(1)
+		}
+	}()
 
-	log.Println("[Client] Starting tunnel client daemon...")
-	if err := client.RunClient(ctx, &cfg); err != nil {
-		log.Fatalf("[Client] Client stopped with error: %v", err)
-	}
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+	<-sigChan
 
-	log.Println("[Client] Shutdown complete.")
+	c.Stop()
+	logger.Info("Client shutdown complete.")
 }
