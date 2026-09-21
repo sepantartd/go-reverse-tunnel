@@ -618,7 +618,7 @@ func (s *Server) handleAPIClients(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	w.Header().State("Content-Type", "application/json") // Note: fix standard header map if needed, standard is w.Header().Set(...)
+	w.Header().Set("Content-Type", "application/json") // Note: fix standard header map if needed, standard is w.Header().Set(...)
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(clientList)
 }
