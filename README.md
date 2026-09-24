@@ -14,6 +14,10 @@
   <a href="https://github.com/sepantartd/go-reverse-tunnel/actions"><img src="https://img.shields.io/github/actions/workflow/status/sepantartd/go-reverse-tunnel/ci.yml?branch=main&style=for-the-badge&logo=githubactions&logoColor=white&label=CI" alt="CI"></a>
   <a href="https://github.com/sepantartd/go-reverse-tunnel/releases"><img src="https://img.shields.io/badge/Platform-Linux%20%7C%20macOS%20%7C%20Windows-blue?style=for-the-badge&logo=linux&logoColor=white" alt="Platform"></a>
 </p>
+<p align="center">
+  <a href="README.md">English</a> •
+  <a href="README_FA.md">فارسی</a>
+</p>
 
 A high-performance, secure, and lightweight **Reverse Tunneling** tool written in Go. It enables you to expose your local servers behind NATs or firewalls to the public internet through a server with a public IP address.
 
