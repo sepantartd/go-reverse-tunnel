@@ -1,4 +1,19 @@
-## Go Reverse Tunnel
+<p align="center">
+  <h1 align="center">Go Reverse Tunnel</h1>
+  <p align="center">
+    High-performance, secure & lightweight reverse tunneling tool written in Go
+  </p>
+</p>
+
+<p align="center">
+  <a href="https://go.dev/"><img src="https://img.shields.io/badge/Go-1.22+-00ADD8?style=for-the-badge&logo=go&logoColor=white" alt="Go"></a>
+  <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge" alt="License"></a>
+  <a href="https://github.com/sepantartd/go-reverse-tunnel/releases"><img src="https://img.shields.io/github/v/release/sepantartd/go-reverse-tunnel?style=for-the-badge&logo=github&color=blue" alt="Release"></a>
+  <a href="https://github.com/sepantartd/go-reverse-tunnel/stargazers"><img src="https://img.shields.io/github/stars/sepantartd/go-reverse-tunnel?style=for-the-badge&logo=github" alt="Stars"></a>
+  <a href="https://github.com/sepantartd/go-reverse-tunnel/network/members"><img src="https://img.shields.io/github/forks/sepantartd/go-reverse-tunnel?style=for-the-badge&logo=github" alt="Forks"></a>
+  <a href="https://github.com/sepantartd/go-reverse-tunnel/actions"><img src="https://img.shields.io/github/actions/workflow/status/sepantartd/go-reverse-tunnel/ci.yml?branch=main&style=for-the-badge&logo=githubactions&logoColor=white&label=CI" alt="CI"></a>
+  <a href="https://github.com/sepantartd/go-reverse-tunnel/releases"><img src="https://img.shields.io/badge/Platform-Linux%20%7C%20macOS%20%7C%20Windows-blue?style=for-the-badge&logo=linux&logoColor=white" alt="Platform"></a>
+</p>
 
 A high-performance, secure, and lightweight **Reverse Tunneling** tool written in Go. It enables you to expose your local servers behind NATs or firewalls to the public internet through a server with a public IP address.
 
