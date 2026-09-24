@@ -19,6 +19,23 @@
   <a href="README_FA.md">فارسی</a>
 </p>
 
+## Screenshots
+
+<p align="center">
+  <img src="server.png" alt="Server" width="48%">
+  &nbsp;
+  <img src="client.png" alt="Client" width="48%">
+</p>
+
+<br>
+
+<p align="center">
+  <img src="dashboard.png" alt="Dashboard" width="85%">
+</p>
+
+---
+
+
 A high-performance, secure, and lightweight **Reverse Tunneling** tool written in Go. It enables you to expose your local servers behind NATs or firewalls to the public internet through a server with a public IP address.
 
 ---
