@@ -42,6 +42,25 @@
 
 ---
 
+## مقایسه با ابزارهای مشابه
+
+| ویژگی                        | **go-reverse-tunnel** | frp          | chisel       | ngrok        | Cloudflare Tunnel |
+|-----------------------------|-----------------------|--------------|--------------|--------------|-------------------|
+| **Self-hosted**             | ✅                    | ✅           | ✅           | ❌           | ❌ (edge)         |
+| **TCP**                     | ✅                    | ✅           | ✅           | ✅           | محدود             |
+| **UDP**                     | ✅                    | ✅           | ✅           | ❌           | محدود             |
+| **Multiplexing**            | ✅ (Yamux)            | ✅           | ✅           | ✅           | ✅                |
+| **Traffic Obfuscation**     | ✅                    | ❌           | ❌           | ❌           | ❌                |
+| **HMAC Auth**               | ✅                    | Token        | SSH Auth     | Token        | Token             |
+| **Auto TLS (Let's Encrypt)**| ✅                    | پلاگین       | محدود        | ✅           | ✅                |
+| **Dashboard + Metrics**     | ✅ (Prometheus)       | ✅           | ❌           | ✅           | محدود             |
+| **Rate Limiting**           | ✅                    | ❌           | ❌           | ✅           | ✅                |
+| **سبک و Single Binary**     | ✅                    | ✅           | ✅           | Agent        | Agent             |
+| **مناسب دور زدن DPI**       | ✅                    | ضعیف         | متوسط        | ضعیف         | متوسط             |
+
+
+---
+
 ## نصب سریع (Linux و Termux)
 
 نصب آخرین باینری از [Releases](https://github.com/sepantartd/go-reverse-tunnel/releases):
