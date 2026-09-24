@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <strong>High-performance • Secure • Lightweight reverse tunneling</strong>
+  <strong>ابزار تونل معکوس با عملکرد بالا، امن و سبک نوشته‌شده با Go</strong>
 </p>
 
 <p align="center">
@@ -14,41 +14,49 @@
   <a href="https://github.com/sepantartd/go-reverse-tunnel/actions"><img src="https://img.shields.io/github/actions/workflow/status/sepantartd/go-reverse-tunnel/ci.yml?branch=main&style=flat-square&logo=githubactions&logoColor=white&label=CI"></a>
 </p>
 
-یک ابزار **ریورس تانلینگ (Reverse Tunneling)** فوق‌العاده سریع، امن و سبک که به زبان Go پیاده‌سازی شده است. این ابزار به شما اجازه می‌دهد سرویس‌های محلی (Local) خود را که پشت NAT یا فایروال قرار دارند، از طریق یک سرور با IP عمومی به اینترنت معرفی و دسترس‌پذیر کنید.
+<p align="center">
+  <a href="README.md">English</a> •
+  <a href="README_FA.md">فارسی</a>
+</p>
 
 ---
 
-## 🌟 ویژگی‌های کلیدی
+## معرفی
 
-- **تخصیص پورت پویا (Dynamic Port Allocation):** مانند ngrok، در صورت تنظیم پورت روی `0` سرور به‌صورت خودکار یک پورت آزاد رزرو کرده و به کلاینت اختصاص می‌دهد.
-- **مالتی‌پلی‌کسینگ قدرتمند با Yamux:** مدیریت هزاران اتصال همزمان تنها روی یک کانال TCP/TLS.
-- **مخفی‌سازی ترافیک (Obfuscation):** مبهم‌سازی ترافیک TCP خام قبل از TLS جهت عبور از سیستم‌های بازرسی عمیق بسته‌ها (DPI).
-- **امنیت بالا با HMAC-SHA256:** احرازهویت کلاینت‌ها با Nonce تصادفی و رمزنگاری HMAC بدون ارسال توکن اصلی در شبکه.
-- **پشتیبانی از TLS و Auto-TLS (Let's Encrypt):** دریافت و تمدید خودکار گواهی TLS مجانی بدون نیاز به ابزار جانبی.
-- **پشتیبانی از UDP Forwarding:** امکان تانل کردن بسته‌های UDP برای بازی‌های آنلاین، DNS و سایر پروتکل‌های مبتنی بر UDP.
-- **محدودکننده نرخ اتصال (Rate Limiting):** جلوگیری از حملات Brute-force و DoS با کنترل تعداد درخواست‌ها بر اساس IP.
-- **داشبورد و مانیتورینگ:** ارائه متریک‌های Prometheus و اندپوینت‌های pprof (محافظت‌شده با توکن) جهت عیب‌یابی و پایش عملکرد.
-- **وب‌هوک (Webhook Notification):** اطلاع‌رسانی اتصالات، قطع اتصال‌ها و خطاهای امنیتی.
+**Go Reverse Tunnel** یک ابزار تونل معکوس با کارایی بالا، امن و سبک است که به زبان Go نوشته شده.  
+با این ابزار می‌توانید سرورهای محلی پشت NAT یا فایروال را از طریق یک سرور با IP عمومی در دسترس اینترنت قرار دهید.
 
 ---
 
-## 🚀 نصب سریع
+## ویژگی‌های کلیدی
 
-### اسکریپت نصب تک‌خطی (لینوکس و Termux)
+- **تخصیص پورت داینامیک:** پورت را `0` بگذارید تا سرور به‌صورت خودکار یک پورت آزاد از بازه مشخص‌شده به کلاینت اختصاص دهد.
+- **Multiplexing با Yamux:** هزاران اتصال همزمان روی یک اتصال TCP/TLS واحد.
+- **مبهم‌سازی ترافیک (Obfuscation):** مخفی کردن داده‌های handshake اولیه قبل از TLS برای دور زدن سیستم‌های DPI.
+- **احراز هویت HMAC-SHA256:** احراز هویت امن challenge-response بدون ارسال مستقیم توکن روی شبکه.
+- **پشتیبانی از TLS و Auto-TLS (Let's Encrypt):** پشتیبانی از گواهی سفارشی و دریافت خودکار گواهی از Let's Encrypt.
+- **فورواردینگ ترافیک UDP:** پشتیبانی بومی از تونل کردن ترافیک UDP (بازی، DNS، VoIP و غیره).
+- **محدودسازی نرخ (Rate Limiting):** محافظت از endpointهای کنترل در برابر سوءاستفاده و حملات DoS.
+- **داشبورد، متریک و pprof:** خروجی متریک‌های Prometheus، داشبورد وضعیت زنده و endpointهای pprof محافظت‌شده با توکن.
+- **هشدار Webhook:** ارسال فوری هشدار برای شکست احراز هویت، اتصال و قطع اتصال کلاینت‌ها.
 
-برای نصب آخرین نسخه آماده از [GitHub Releases](https://github.com/sepantartd/go-reverse-tunnel/releases):
+---
+
+## نصب سریع (Linux و Termux)
+
+نصب آخرین باینری از [Releases](https://github.com/sepantartd/go-reverse-tunnel/releases):
 
 ```bash
-bash <(curl -sL [https://raw.githubusercontent.com/sepantartd/go-reverse-tunnel/main/scripts/install.sh](https://raw.githubusercontent.com/sepantartd/go-reverse-tunnel/main/scripts/install.sh))
+bash <(curl -sL https://raw.githubusercontent.com/sepantartd/go-reverse-tunnel/main/scripts/install.sh)
 ```
 
 ---
 
-## 🛠️ نحوه استفاده
+## راهنمای استفاده
 
-### ۱. اجرای سرور (Server)
+### ۱. اجرای سرور
 
-فایل کانفیگ سرور `server.json`:
+فایل `server.json`:
 
 ```json
 {
@@ -74,9 +82,9 @@ bash <(curl -sL [https://raw.githubusercontent.com/sepantartd/go-reverse-tunnel/
 go-reverse-tunnel -config server.json
 ```
 
-### ۲. اجرای کلاینت (Client)
+### ۲. اجرای کلاینت
 
-فایل کانفیگ کلاینت `client.json`:
+فایل `client.json`:
 
 ```json
 {
@@ -97,11 +105,16 @@ go-reverse-tunnel -config client.json
 
 ---
 
-## 📊 داشبورد و پروفایلینگ (pprof)
+## داشبورد و Profiling
 
-اگر `dashboard_addr` فعال باشد، اندپوینت‌های زیر از طریق `token` قابل دسترسی خواهند بود:
+وقتی `dashboard_addr` تنظیم شده باشد، endpointهای محافظت‌شده نیاز به توکن دارند:
 
-- **داشبورد وضعیت:** `http://SERVER_IP:9090/dashboard?token=my-super-secret-token`
+- **داشبورد:** `http://SERVER_IP:9090/dashboard?token=my-super-secret-token`
 - **متریک‌های Prometheus:** `http://SERVER_IP:9090/metrics?token=my-super-secret-token`
-- **پروفایلر pprof:** `http://SERVER_IP:9090/debug/pprof/?token=my-super-secret-token`
-- 
+- **pprof Profiler:** `http://SERVER_IP:9090/debug/pprof/?token=my-super-secret-token`
+
+---
+
+## لایسنس
+
+این پروژه تحت [لایسنس MIT](LICENSE) منتشر شده است.
