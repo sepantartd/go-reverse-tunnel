@@ -1,4 +1,18 @@
-# تانل معکوس با گو (Go Reverse Tunnel)
+<p align="center">
+  <img src="https://img.shields.io/badge/Go-Reverse%20Tunnel-00ADD8?style=for-the-badge&logo=go&logoColor=white" alt="Go Reverse Tunnel">
+</p>
+
+<p align="center">
+  <strong>High-performance • Secure • Lightweight reverse tunneling</strong>
+</p>
+
+<p align="center">
+  <a href="https://go.dev/"><img src="https://img.shields.io/badge/Go-1.22+-00ADD8?style=flat-square&logo=go&logoColor=white"></a>
+  <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square"></a>
+  <a href="https://github.com/sepantartd/go-reverse-tunnel/releases"><img src="https://img.shields.io/github/v/release/sepantartd/go-reverse-tunnel?style=flat-square&logo=github&color=blue"></a>
+  <a href="https://github.com/sepantartd/go-reverse-tunnel/stargazers"><img src="https://img.shields.io/github/stars/sepantartd/go-reverse-tunnel?style=flat-square&logo=github"></a>
+  <a href="https://github.com/sepantartd/go-reverse-tunnel/actions"><img src="https://img.shields.io/github/actions/workflow/status/sepantartd/go-reverse-tunnel/ci.yml?branch=main&style=flat-square&logo=githubactions&logoColor=white&label=CI"></a>
+</p>
 
 یک ابزار **ریورس تانلینگ (Reverse Tunneling)** فوق‌العاده سریع، امن و سبک که به زبان Go پیاده‌سازی شده است. این ابزار به شما اجازه می‌دهد سرویس‌های محلی (Local) خود را که پشت NAT یا فایروال قرار دارند، از طریق یک سرور با IP عمومی به اینترنت معرفی و دسترس‌پذیر کنید.
 
