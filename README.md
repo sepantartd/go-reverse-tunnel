@@ -37,6 +37,26 @@ A high-performance, secure, and lightweight **Reverse Tunneling** tool written i
 
 ---
 
+## Comparison with Similar Tools
+
+| Feature                      | **go-reverse-tunnel** | frp          | chisel       | ngrok        | Cloudflare Tunnel |
+|-----------------------------|-----------------------|--------------|--------------|--------------|-------------------|
+| **Self-hosted**             | ✅                    | ✅           | ✅           | ❌           | ❌ (edge)         |
+| **TCP**                     | ✅                    | ✅           | ✅           | ✅           | Limited           |
+| **UDP**                     | ✅                    | ✅           | ✅           | ❌           | Limited           |
+| **Multiplexing**            | ✅ (Yamux)            | ✅           | ✅           | ✅           | ✅                |
+| **Traffic Obfuscation**     | ✅                    | ❌           | ❌           | ❌           | ❌                |
+| **HMAC Authentication**     | ✅                    | Token        | SSH Auth     | Token        | Token             |
+| **Auto TLS (Let's Encrypt)**| ✅                    | Plugin       | Limited      | ✅           | ✅                |
+| **Dashboard + Metrics**     | ✅ (Prometheus)       | ✅           | ❌           | ✅           | Limited           |
+| **Rate Limiting**           | ✅                    | ❌           | ❌           | ✅           | ✅                |
+| **Lightweight Single Binary**| ✅                   | ✅           | ✅           | Agent        | Agent             |
+| **DPI Bypass Friendly**     | ✅                    | Weak         | Medium       | Weak         | Medium            |
+
+
+---
+
+
 ## 🚀 Quick Start
 
 ### One-Line Automated Installer (Linux & Termux)
